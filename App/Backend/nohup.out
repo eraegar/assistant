@@ -1,0 +1,36 @@
+INFO:     Started server process [139584]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+✅ Client API router loaded successfully
+✅ Assistant API router loaded successfully
+✅ Management API router loaded successfully
+Creating database tables...
+Database tables created successfully!
+✅ Legacy tasks router loaded successfully
+🚀 Application starting up...
+✅ Application startup complete
+🏠 Serving API info
+INFO:     127.0.0.1:47022 - "GET / HTTP/1.1" 200 OK
+🏠 Serving API info
+INFO:     188.130.155.158:0 - "GET / HTTP/1.1" 200 OK
+🏠 Serving API info
+INFO:     188.130.155.158:0 - "GET / HTTP/1.1" 200 OK
+🏠 Serving API info
+INFO:     188.130.155.158:0 - "GET / HTTP/1.1" 200 OK
+🏠 Serving API info
+INFO:     127.0.0.1:46268 - "GET / HTTP/1.1" 200 OK
+🏠 Serving API info
+INFO:     127.0.0.1:47512 - "GET / HTTP/1.1" 200 OK
+🏠 Serving API info
+INFO:     127.0.0.1:43080 - "GET / HTTP/1.1" 200 OK
+🏠 Serving API info
+INFO:     188.130.155.158:0 - "GET / HTTP/1.1" 200 OK
+🏠 Serving API info
+INFO:     188.130.155.158:0 - "GET / HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [139584]
+🛑 Application shutting down...
+✅ Application shutdown complete

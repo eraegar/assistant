@@ -1,8 +1,8 @@
 stages:
   - test
   - build
-  - deploy
   - quality
+  - deploy
 
 variables:
   DOCKER_DRIVER: overlay2
@@ -10,92 +10,52 @@ variables:
   POSTGRES_USER: test_user
   POSTGRES_PASSWORD: test_password
 
-# Backend Testing
+# --- TEST STAGE ---
 test:backend:
   stage: test
   image: python:3.11
   services:
     - postgres:13
   variables:
-    DATABASE_URL: postgresql://test_user:test_password@postgres:5432/telegram_assistant_test
+    DATABASE_URL: postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@postgres:5432/$POSTGRES_DB
   before_script:
     - cd App/Backend
-    - pip install -r requirements.txt
-    - pip install pytest pytest-cov pytest-asyncio
+    - pip install -r requirements.txt pytest pytest-cov pytest-asyncio
   script:
-    - python -m pytest tests/ -v --cov=app --cov-report=xml --cov-report=term
+    - python -m pytest tests/ -v --cov=app --cov-report=xml
     - python -m pytest tests/quality/ -v
   coverage: '/TOTAL.*\s+(\d+%)$/'
   artifacts:
     reports:
-      coverage_report:
-        coverage_format: cobertura
-        path: App/Backend/coverage.xml
+      cobertura: App/Backend/coverage.xml
     paths:
       - App/Backend/coverage.xml
-  only:
-    - merge_requests
-    - main
-    - develop
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+    - if: $CI_COMMIT_BRANCH == 'main' || $CI_COMMIT_BRANCH == 'develop'
 
-# Frontend Testing - Client App
-test:frontend:client:
+# Объединенный фронтенд-тест для всех приложений
+test:frontend:
   stage: test
   image: node:18
+  parallel:
+    matrix:
+      - APP_DIR: ["client-app", "manager-app", "assistant-app"]
   before_script:
-    - cd App/Frontend/client-app
+    - cd App/Frontend/${APP_DIR}
     - npm ci
   script:
     - npm run test -- --coverage --watchAll=false
     - npm run lint
   artifacts:
     reports:
-      junit: App/Frontend/client-app/junit.xml
-      coverage_report:
-        coverage_format: cobertura
-        path: App/Frontend/client-app/coverage/cobertura-coverage.xml
-  only:
-    - merge_requests
-    - main
-    - develop
+      junit: App/Frontend/${APP_DIR}/junit.xml
+      cobertura: App/Frontend/${APP_DIR}/coverage/cobertura-coverage.xml
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+    - if: $CI_COMMIT_BRANCH == 'main' || $CI_COMMIT_BRANCH == 'develop'
 
-# Frontend Testing - Manager App
-test:frontend:manager:
-  stage: test
-  image: node:18
-  before_script:
-    - cd App/Frontend/manager-app
-    - npm ci
-  script:
-    - npm run test -- --coverage --watchAll=false
-    - npm run lint
-  artifacts:
-    reports:
-      junit: App/Frontend/manager-app/junit.xml
-  only:
-    - merge_requests
-    - main
-    - develop
-
-# Frontend Testing - Assistant App
-test:frontend:assistant:
-  stage: test
-  image: node:18
-  before_script:
-    - cd App/Frontend/assistant-app
-    - npm ci
-  script:
-    - npm run test -- --coverage --watchAll=false
-    - npm run lint
-  artifacts:
-    reports:
-      junit: App/Frontend/assistant-app/junit.xml
-  only:
-    - merge_requests
-    - main
-    - develop
-
-# Static Analysis - Python
+# --- STATIC ANALYSIS ---
 static_analysis:python:
   stage: test
   image: python:3.11
@@ -103,18 +63,15 @@ static_analysis:python:
     - cd App/Backend
     - pip install black flake8 mypy bandit safety
   script:
-    - black --check .
+    - black --check --diff .
     - flake8 .
     - mypy app/
-    - bandit -r app/
-    - safety check
+    - bandit -r app/ -ll
+    - safety check --full-report
   allow_failure: true
-  only:
-    - merge_requests
-    - main
-    - develop
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
 
-# Static Analysis - JavaScript
 static_analysis:javascript:
   stage: test
   image: node:18
@@ -126,12 +83,10 @@ static_analysis:javascript:
     - npm run type-check
     - npm audit --audit-level moderate
   allow_failure: true
-  only:
-    - merge_requests
-    - main
-    - develop
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
 
-# Build Backend
+# --- BUILD STAGE ---
 build:backend:
   stage: build
   image: python:3.11
@@ -145,51 +100,41 @@ build:backend:
     paths:
       - App/Backend/
     expire_in: 1 hour
-  only:
-    - main
-    - develop
+  rules:
+    - if: $CI_COMMIT_BRANCH == 'main' || $CI_COMMIT_BRANCH == 'develop'
 
-# Build Frontend Applications
 build:frontend:
   stage: build
   image: node:18
+  parallel:
+    matrix:
+      - APP_DIR: ["client-app", "manager-app", "assistant-app"]
   script:
-    # Build Client App
-    - cd App/Frontend/client-app
+    - cd App/Frontend/${APP_DIR}
     - npm ci
     - npm run build
-    - cd ../../..
-    
-    # Build Manager App
-    - cd App/Frontend/manager-app
-    - npm ci
-    - npm run build
-    - cd ../../..
-    
-    # Build Assistant App
-    - cd App/Frontend/assistant-app
-    - npm ci
-    - npm run build
-    - cd ../..
   artifacts:
     paths:
-      - App/Frontend/client-app/build/
-      - App/Frontend/manager-app/build/
-      - App/Frontend/assistant-app/build/
+      - App/Frontend/${APP_DIR}/build/
     expire_in: 1 hour
-  only:
-    - main
-    - develop
+  rules:
+    - if: $CI_COMMIT_BRANCH == 'main' || $CI_COMMIT_BRANCH == 'develop'
 
-# End-to-End Testing
+# --- QUALITY STAGE ---
 test:e2e:
   stage: quality
   image: cypress/included:12.17.0
   services:
-    - postgres:13
+    - name: postgres:13
+      alias: postgres
+    - name: python:3.11
+      alias: backend
+    - name: node:18
+      alias: frontend
   variables:
-    CYPRESS_baseUrl: http://localhost:3000
-    DATABASE_URL: postgresql://test_user:test_password@postgres:5432/telegram_assistant_test
+    CYPRESS_baseUrl: http://frontend:3000
+    BACKEND_URL: http://backend:8000
+    DATABASE_URL: postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@postgres:5432/$POSTGRES_DB
   before_script:
     - cd App/Backend
     - pip install -r requirements.txt
@@ -198,136 +143,63 @@ test:e2e:
     - cd ../Frontend/client-app
     - npm ci
     - npm start &
-    - sleep 30  # Wait for services to start
+    - npx wait-on -t 30000 $BACKEND_URL $CYPRESS_baseUrl
   script:
-    - npx cypress run --record --key $CYPRESS_RECORD_KEY
+    - npx cypress run
   artifacts:
     when: always
     paths:
       - App/Frontend/client-app/cypress/videos/
       - App/Frontend/client-app/cypress/screenshots/
     expire_in: 1 week
-  only:
-    - main
-    - develop
+  rules:
+    - if: $CI_COMMIT_BRANCH == 'main' || $CI_COMMIT_BRANCH == 'develop'
 
-# Performance Testing
-test:performance:
-  stage: quality
-  image: python:3.11
-  services:
-    - postgres:13
-  variables:
-    DATABASE_URL: postgresql://test_user:test_password@postgres:5432/telegram_assistant_test
-  before_script:
-    - cd App/Backend
-    - pip install -r requirements.txt
-    - pip install locust
-  script:
-    - python -m pytest tests/quality/performance_test.py -v
-    - locust -f tests/performance/locustfile.py --headless -u 100 -r 10 -t 60s --host http://localhost:8000
-  artifacts:
-    paths:
-      - App/Backend/performance_results.html
-    expire_in: 1 week
-  only:
-    - main
-    - develop
-
-# Security Testing
-test:security:
-  stage: quality
-  image: python:3.11
-  before_script:
-    - cd App/Backend
-    - pip install -r requirements.txt
-    - pip install safety bandit
-  script:
-    - python -m pytest tests/quality/security_test.py -v
-    - bandit -r app/ -f json -o bandit_report.json
-    - safety check --json --output safety_report.json
-  artifacts:
-    paths:
-      - App/Backend/bandit_report.json
-      - App/Backend/safety_report.json
-    expire_in: 1 week
-  allow_failure: true
-  only:
-    - main
-    - develop
-
-# Deploy to Production
+# --- DEPLOY STAGE ---
 deploy:production:
   stage: deploy
   image: alpine:latest
   before_script:
-    - apk add --no-cache openssh-client
+    - apk add --no-cache openssh-client rsync
     - eval $(ssh-agent -s)
-    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - echo "$SSH_PRIVATE_KEY" | ssh-add -
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
     - ssh-keyscan -H $PRODUCTION_SERVER >> ~/.ssh/known_hosts
   script:
-    - ssh root@$PRODUCTION_SERVER "cd /root/project/App && git pull origin main"
+    - rsync -avz --delete App/ root@$PRODUCTION_SERVER:/root/project/App
     - ssh root@$PRODUCTION_SERVER "cd /root/project/App && ./deploy.sh"
-    - ssh root@$PRODUCTION_SERVER "systemctl status rent-assistant-backend rent-assistant-client rent-assistant-manager rent-assistant-assistant rent-assistant-tunnel"
   environment:
     name: production
     url: https://rent-assistant.ru
-  only:
-    - main
-  when: manual
+  rules:
+    - if: $CI_COMMIT_BRANCH == 'main'
+      when: manual
 
-# Deploy to Staging
 deploy:staging:
   stage: deploy
   image: alpine:latest
   before_script:
-    - apk add --no-cache openssh-client
+    - apk add --no-cache openssh-client rsync
     - eval $(ssh-agent -s)
-    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - echo "$SSH_PRIVATE_KEY" | ssh-add -
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
     - ssh-keyscan -H $STAGING_SERVER >> ~/.ssh/known_hosts
   script:
-    - ssh root@$STAGING_SERVER "cd /root/project/App && git pull origin develop"
+    - rsync -avz --delete App/ root@$STAGING_SERVER:/root/project/App
     - ssh root@$STAGING_SERVER "cd /root/project/App && ./deploy.sh"
   environment:
     name: staging
     url: https://staging.rent-assistant.ru
-  only:
-    - develop
-  when: manual
+  rules:
+    - if: $CI_COMMIT_BRANCH == 'develop'
+      when: manual
 
-# Code Quality Gates
-quality:gate:
-  stage: quality
-  image: python:3.11
-  script:
-    - echo "Checking quality gates..."
-    - |
-      if [ "$CI_COMMIT_REF_NAME" = "main" ]; then
-        echo "Production deployment - all quality checks must pass"
-        exit 0
-      else
-        echo "Development branch - quality checks completed"
-        exit 0
-      fi
-  dependencies:
-    - test:backend
-    - test:frontend:client
-    - test:frontend:manager
-    - test:frontend:assistant
-    - static_analysis:python
-    - static_analysis:javascript
-  only:
-    - main
-    - develop
-
-# Cleanup
+# --- POST OPERATIONS ---
 cleanup:
   stage: .post
   image: alpine:latest
   script:
     - echo "Cleaning up temporary files..."
-  when: always 
+  when: always

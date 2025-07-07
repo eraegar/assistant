@@ -62,6 +62,9 @@ import { useManagerStore } from '../stores/useManagerStore';
 import { managerGradients } from '../theme';
 import { formatPhoneNumber, getCleanPhoneNumber, isValidPhoneNumber } from '../utils/phoneFormatter';
 
+// API base URL
+const API_BASE_URL = 'https://api.rent-assistant.ru';
+
 // Styled components for enhanced design
 const StatsCard = styled(Card)(({ theme }) => ({
   background: managerGradients.card,
@@ -286,7 +289,7 @@ const Dashboard: React.FC = () => {
   const loadOverview = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/v1/management/dashboard/overview', {
+      const response = await fetch(`${API_BASE_URL}/api/v1/management/dashboard/overview`, {
         headers: getAuthHeaders()
       });
       
@@ -307,7 +310,7 @@ const Dashboard: React.FC = () => {
   const loadTasks = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/v1/management/tasks', {
+      const response = await fetch(`${API_BASE_URL}/api/v1/management/tasks`, {
         headers: getAuthHeaders()
       });
       
@@ -328,7 +331,7 @@ const Dashboard: React.FC = () => {
   const loadAssistants = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/v1/management/assistants', {
+      const response = await fetch(`${API_BASE_URL}/api/v1/management/assistants`, {
         headers: getAuthHeaders()
       });
       
@@ -348,7 +351,7 @@ const Dashboard: React.FC = () => {
 
   const loadAvailableAssistants = async (taskType: string) => {
     try {
-      const response = await fetch(`/api/v1/management/assistants/available?task_type=${taskType}`, {
+      const response = await fetch(`${API_BASE_URL}/api/v1/management/assistants/available?task_type=${taskType}`, {
         headers: getAuthHeaders()
       });
       
@@ -368,7 +371,7 @@ const Dashboard: React.FC = () => {
 
   const handleTaskReassign = async (taskId: number, assistantId: number | null) => {
     try {
-      const response = await fetch(`/api/v1/management/tasks/${taskId}/reassign`, {
+      const response = await fetch(`${API_BASE_URL}/api/v1/management/tasks/${taskId}/reassign`, {
         method: 'PUT',
         headers: getAuthHeaders(),
         body: JSON.stringify({ assistant_id: assistantId })
@@ -1361,7 +1364,7 @@ const Dashboard: React.FC = () => {
       setLoading(true);
       
       // Формируем URL с фильтром подписки
-      let url = '/api/v1/management/clients';
+      let url = `${API_BASE_URL}/api/v1/management/clients`;
       if (subscriptionFilter) {
         url += `?subscription_status=${subscriptionFilter}`;
       }
@@ -1418,7 +1421,7 @@ const Dashboard: React.FC = () => {
         phone: getCleanPhoneNumber(newAssistant.phone) // Ensure clean format for API
       };
 
-      const response = await fetch('/api/v1/management/assistants/create', {
+      const response = await fetch(`${API_BASE_URL}/api/v1/management/assistants/create`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify(assistantDataToSend)
@@ -1457,7 +1460,7 @@ const Dashboard: React.FC = () => {
     if (!selectedClient || !assignmentAssistant) return;
     
     try {
-      const response = await fetch(`/api/v1/management/clients/${selectedClient.id}/assign-assistant`, {
+      const response = await fetch(`${API_BASE_URL}/api/v1/management/clients/${selectedClient.id}/assign`, {
         method: 'PUT',
         headers: getAuthHeaders(),
         body: JSON.stringify({ assistant_id: assignmentAssistant })
@@ -1490,7 +1493,7 @@ const Dashboard: React.FC = () => {
       
       if (!confirmUnassign) return;
       
-      const response = await fetch(`/api/v1/management/clients/${client.id}/unassign-assistant`, {
+      const response = await fetch(`${API_BASE_URL}/api/v1/management/clients/${client.id}/unassign`, {
         method: 'DELETE',
         headers: getAuthHeaders()
       });
@@ -1519,7 +1522,7 @@ const Dashboard: React.FC = () => {
 
   const handleResetPassword = async (assistantId: number) => {
     try {
-      const response = await fetch(`/api/v1/management/assistants/${assistantId}/reset-password`, {
+      const response = await fetch(`${API_BASE_URL}/api/v1/management/assistants/${assistantId}/reset-password`, {
         method: 'POST',
         headers: getAuthHeaders()
       });

@@ -1,0 +1,88 @@
+@startuml component-diagram
+!define RECTANGLE class
+
+title Component Diagram - Telegram Assistant System
+
+package "Frontend Layer" {
+    [Client App] as ClientApp
+    [Manager App] as ManagerApp
+    [Assistant App] as AssistantApp
+}
+
+package "Backend Layer" {
+    [API Gateway] as APIGateway
+    [Authentication Service] as AuthService
+    [Property Service] as PropertyService
+    [Task Service] as TaskService
+    [User Service] as UserService
+    [Notification Service] as NotificationService
+}
+
+package "Bot Layer" {
+    [Telegram Bot] as TelegramBot
+    [Bot Handler] as BotHandler
+}
+
+package "Data Layer" {
+    [Database] as Database
+    [File Storage] as FileStorage
+}
+
+package "External Services" {
+    [Cloudflare] as Cloudflare
+    [Telegram API] as TelegramAPI
+}
+
+' Frontend connections
+ClientApp --> APIGateway : HTTPS/REST
+ManagerApp --> APIGateway : HTTPS/REST
+AssistantApp --> APIGateway : HTTPS/REST
+
+' API Gateway connections
+APIGateway --> AuthService : Internal API
+APIGateway --> PropertyService : Internal API
+APIGateway --> TaskService : Internal API
+APIGateway --> UserService : Internal API
+
+' Service connections
+PropertyService --> Database : SQL
+TaskService --> Database : SQL
+UserService --> Database : SQL
+AuthService --> Database : SQL
+
+PropertyService --> NotificationService : Event
+TaskService --> NotificationService : Event
+
+NotificationService --> TelegramBot : Webhook
+TelegramBot --> BotHandler : Message Processing
+BotHandler --> APIGateway : Internal API
+
+' External connections
+TelegramBot --> TelegramAPI : Bot API
+ClientApp --> Cloudflare : CDN/Security
+ManagerApp --> Cloudflare : CDN/Security
+AssistantApp --> Cloudflare : CDN/Security
+
+' Storage connections
+PropertyService --> FileStorage : File Upload
+UserService --> FileStorage : Profile Images
+
+note right of APIGateway
+    FastAPI-based REST API
+    Handles authentication,
+    routing, and validation
+end note
+
+note right of Database
+    SQLite database
+    Stores all application data
+    with proper relationships
+end note
+
+note right of TelegramBot
+    Python-based bot
+    Handles user interactions
+    and notifications
+end note
+
+@enduml 

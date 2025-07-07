@@ -76,17 +76,24 @@ def register_manager(manager_data: dict, db: Session = Depends(get_db)):
     )
 
 @router.post("/auth/login")
-def login_manager(credentials: dict, db: Session = Depends(get_db)):
+def login_manager(credentials: schemas.UserLogin, db: Session = Depends(get_db)):
     """Manager login"""
+    print(f"🔐 Manager login attempt for phone: {credentials.phone}")
     user = db.query(models.User).filter(
-        models.User.phone == credentials["phone"],
+        models.User.phone == credentials.phone,
         models.User.role == models.UserRole.manager
     ).first()
-    
-    if not user or not auth.verify_password(credentials["password"], user.password_hash):
+
+    if not user:
+        print(f"❌ Manager not found for phone: {credentials.phone}")
         raise HTTPException(status_code=400, detail="Incorrect phone or password")
-    
+
+    if not auth.verify_password(credentials.password, user.password_hash):
+        print(f"❌ Password verification failed for user: {user.id}")
+        raise HTTPException(status_code=400, detail="Incorrect phone or password")
+
     token = auth.create_access_token({"user_id": user.id, "role": "manager"})
+    print(f"✅ Manager login successful for user: {user.id}")
     return {"access_token": token, "token_type": "bearer"}
 
 @router.get("/profile", response_model=schemas.ManagerOut)

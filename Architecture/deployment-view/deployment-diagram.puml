@@ -1,0 +1,110 @@
+@startuml deployment-diagram
+title Deployment View - Telegram Assistant System
+
+node "Ubuntu Server (rent-assistant.ru)" as Server {
+    
+    node "systemd Services" as SystemD {
+        component "rent-assistant-backend" as BackendService
+        component "rent-assistant-client" as ClientService
+        component "rent-assistant-manager" as ManagerService
+        component "rent-assistant-assistant" as AssistantService
+        component "rent-assistant-tunnel" as TunnelService
+    }
+    
+    node "Application Layer" as AppLayer {
+        component "FastAPI Backend" as Backend
+        component "React Client App" as ClientApp
+        component "React Manager App" as ManagerApp
+        component "React Assistant App" as AssistantApp
+        component "Telegram Bot" as TelegramBot
+    }
+    
+    node "Data Layer" as DataLayer {
+        database "SQLite Database" as Database
+        folder "File Storage" as FileStorage
+    }
+    
+    node "Network Layer" as NetworkLayer {
+        component "Cloudflared Tunnel" as Tunnel
+    }
+}
+
+cloud "Cloudflare Network" as CloudflareNetwork {
+    component "Cloudflare Edge" as CloudflareEdge
+    component "DNS Management" as DNS
+    component "SSL/TLS" as SSL
+}
+
+cloud "External Services" as ExternalServices {
+    component "Telegram API" as TelegramAPI
+    component "GitLab CI/CD" as GitLab
+}
+
+actor "Manager User" as Manager
+actor "Assistant User" as Assistant
+actor "Client User" as Client
+
+' Service connections
+BackendService --> Backend : manages
+ClientService --> ClientApp : manages
+ManagerService --> ManagerApp : manages
+AssistantService --> AssistantApp : manages
+TunnelService --> Tunnel : manages
+
+' Application connections
+Backend --> Database : SQLite connection
+Backend --> FileStorage : file operations
+TelegramBot --> Backend : HTTP API calls
+TelegramBot --> TelegramAPI : Bot API
+
+' Network connections
+Tunnel --> CloudflareNetwork : secure tunnel
+CloudflareEdge --> DNS : domain resolution
+CloudflareEdge --> SSL : certificate management
+
+' User connections
+Manager --> CloudflareNetwork : https://manager.rent-assistant.ru
+Assistant --> CloudflareNetwork : https://assistant.rent-assistant.ru
+Client --> CloudflareNetwork : https://rent-assistant.ru
+
+' External connections
+GitLab --> Server : deployment pipeline
+Backend --> TelegramAPI : webhook notifications
+
+' Port mappings
+note right of Backend
+    Port: 8000
+    Protocol: HTTP
+    Service: FastAPI
+end note
+
+note right of ClientApp
+    Port: 3000
+    Protocol: HTTP
+    Service: React Dev Server
+end note
+
+note right of ManagerApp
+    Port: 3001
+    Protocol: HTTP
+    Service: React Dev Server
+end note
+
+note right of AssistantApp
+    Port: 3002
+    Protocol: HTTP
+    Service: React Dev Server
+end note
+
+note right of Tunnel
+    Cloudflare Tunnel ID:
+    bd8fe408-910d-4f94-8ee3-46c5e5f7fd05
+    
+    Domain mappings:
+    - rent-assistant.ru → :3000
+    - api.rent-assistant.ru → :8000
+    - manager.rent-assistant.ru → :3001
+    - assistant.rent-assistant.ru → :3002
+end note
+
+@enduml 

@@ -1,98 +1,92 @@
 #!/usr/bin/env python3
 """
-Скрипт для создания менеджера в системе.
+Create a manager user in the database
 """
-
 import sys
 import os
-
-# Добавляем родительскую директорию в path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from database import SessionLocal
-import models
-import auth
 from datetime import datetime
 
+# Add parent directory to path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import database
+import models
+import auth
+
 def create_manager():
-    """Создать менеджера в системе"""
-    db = SessionLocal()
+    """Create or update manager"""
+    print("🔧 Создание или обновление менеджера...")
     
+    db = database.SessionLocal()
     try:
-        # Данные менеджера
-        manager_data = {
-            "name": "Менеджер",
-            "phone": "+79999999999",  # Используем стандартный тестовый номер
-            "password": "admin123",
-            "email": "manager@company.com",
-            "department": "Operations"
-        }
+        manager_phone = "+79999999999"
+        manager_password = "admin123"
+        manager_email = "manager@company.com"
         
-        print("🔧 Создание менеджера...")
-        print(f"📝 Имя: {manager_data['name']}")
-        print(f"📞 Телефон: {manager_data['phone']}")
-        print(f"🔐 Пароль: {manager_data['password']}")
-        print(f"📧 Email: {manager_data['email']}")
-        print(f"🏢 Отдел: {manager_data['department']}")
-        
-        # Проверяем, не существует ли уже пользователь с таким номером
-        existing_user = db.query(models.User).filter(
-            models.User.phone == manager_data["phone"]
+        # Check if manager already exists
+        manager = db.query(models.User).filter(
+            models.User.phone == manager_phone,
+            models.User.role == models.UserRole.manager
         ).first()
         
-        if existing_user:
-            print(f"⚠️  Пользователь с номером {manager_data['phone']} уже существует!")
-            print(f"   Имя: {existing_user.name}")
-            print(f"   Роль: {existing_user.role.value}")
+        hashed_password = auth.get_password_hash(manager_password)
+        
+        if manager:
+            print(f"🔄 Менеджер с телефоном {manager_phone} уже существует. Обновление пароля...")
+            manager.password_hash = hashed_password
+            manager.name = "Менеджер"
             
-            if existing_user.role == models.UserRole.manager:
-                print("✅ Менеджер уже создан!")
-                return
+            if not manager.manager_profile:
+                # Add profile if it's missing for some reason
+                manager_profile = models.ManagerProfile(
+                    user_id=manager.id,
+                    email=manager_email,
+                    department="Operations"
+                )
+                db.add(manager_profile)
             else:
-                print("❌ Номер телефона занят пользователем с другой ролью!")
-                return
-        
-        # Создаем пользователя
-        hashed_password = auth.get_password_hash(manager_data["password"])
-        db_user = models.User(
-            phone=manager_data["phone"],
-            name=manager_data["name"],
-            password_hash=hashed_password,
-            role=models.UserRole.manager,
-            created_at=datetime.utcnow()
-        )
-        db.add(db_user)
-        db.flush()
-        
-        # Создаем профиль менеджера
-        manager_profile = models.ManagerProfile(
-            user_id=db_user.id,
-            email=manager_data["email"],
-            department=manager_data["department"]
-        )
-        db.add(manager_profile)
-        
+                manager.manager_profile.email = manager_email
+
+            print("✅ Пароль менеджера успешно обновлен.")
+            
+        else:
+            print("✨ Создание нового менеджера...")
+            # Create user
+            db_user = models.User(
+                phone=manager_phone,
+                name="Менеджер",
+                password_hash=hashed_password,
+                role=models.UserRole.manager,
+                telegram_username="main_manager"
+            )
+            db.add(db_user)
+            db.flush()
+            
+            # Create manager profile
+            manager_profile = models.ManagerProfile(
+                user_id=db_user.id,
+                email=manager_email,
+                department="Operations"
+            )
+            db.add(manager_profile)
+            manager = db_user
+            print("✅ Новый менеджер успешно создан.")
+
         db.commit()
-        db.refresh(db_user)
+        db.refresh(manager)
         
-        print("✅ Менеджер успешно создан!")
-        print(f"   ID: {db_user.id}")
-        print(f"   Имя: {db_user.name}")
-        print(f"   Телефон: {db_user.phone}")
-        print(f"   Email: {manager_profile.email}")
-        print(f"   Отдел: {manager_profile.department}")
-        print(f"   Дата создания: {db_user.created_at}")
+        print("\n🎉 Готово!")
+        print(f"   ID: {manager.id}")
+        print(f"   Имя: {manager.name}")
+        print(f"   Телефон: {manager.phone}")
         
-        print("\n🔑 Данные для входа:")
-        print(f"   Телефон: {manager_data['phone']}")
-        print(f"   Пароль: {manager_data['password']}")
-        print(f"   URL: http://localhost:3001 (Manager Dashboard)")
-        
+        # Verify password
+        is_valid = auth.verify_password(manager_password, manager.password_hash)
+        print(f"   Пароль '{manager_password}' установлен: {'✅' if is_valid else '❌'}")
+
     except Exception as e:
+        print(f"❌ Ошибка: {e}")
         db.rollback()
-        print(f"❌ Ошибка при создании менеджера: {e}")
-        import traceback
-        traceback.print_exc()
     finally:
         db.close()
 

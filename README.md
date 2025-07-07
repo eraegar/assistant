@@ -16,7 +16,7 @@ A comprehensive solution for managing rental properties through Telegram integra
 
 **Column Entry Criteria**:
 
-- **Backlog**: 
+- **Open**: 
   - New issues created from templates
   - Issues must have clear acceptance criteria
   - Must be labeled with appropriate priority and type
@@ -48,16 +48,16 @@ A comprehensive solution for managing rental properties through Telegram integra
 **Workflow Rules**:
 
 1. **Creating Issues**:
-   - Use predefined templates: [Bug Report](/.gitlab/issue_templates/Bug.md), [Feature Request](/.gitlab/issue_templates/Feature.md)
+   - Use predefined templates: [Bug Report](/.gitlab/issue_templates/bugReportTemplate.md), [User story](/.gitlab/issue_templates/userStoryTemplate.md) , [Non code](/.gitlab/issue_templates/non_code_task.md) , [Technical tasks](/.gitlab/issue_templates/technicalTask.md)
    - All issues must have clear title and description
    - Include acceptance criteria for features
 
 2. **Labelling Issues**:
    - `bug` - for bug reports
-   - `enhancement` - for new features
-   - `documentation` - for documentation updates
-   - `priority::high/medium/low` - for prioritization
-   - `frontend/backend/telegram-bot` - for component identification
+   - `technical` - for new features
+   - `Non code task` - for anther updates
+   - `user story` - for user stories
+   - `priority::critical/high/medium/low` - for prioritization
 
 3. **Assigning Issues**:
    - Issues assigned during sprint planning
@@ -75,8 +75,8 @@ A comprehensive solution for managing rental properties through Telegram integra
    - Example: `feat(backend): add user authentication endpoint`
 
 6. **Pull Requests**:
-   - Use [PR template](/.gitlab/merge_request_templates/Default.md)
-   - Link to related issue
+   - Use [PR template](/.gitlab/merge_request_templates/default.md)
+   - Link to related [issue](https://gitlab.pg.innopolis.university/d.agafonov/assistant-for-rent-project/-/merge_requests/1)
    - Include testing instructions
    - Require at least one review before merge
 
@@ -113,35 +113,27 @@ A comprehensive solution for managing rental properties through Telegram integra
 ### Automated tests
 
 **Testing Tools**:
-- **Python Backend**: pytest for unit and integration tests
-- **JavaScript Frontend**: Jest and React Testing Library
+- **Python Backend and JavaScript Frontend**: pytest and Jest and React Testing Library for unit and integration tests
 - **End-to-End**: Cypress for full application testing
 
 **Test Types Implemented**:
 
 1. **Unit Tests**:
-   - Location: `App/Backend/tests/`
+   - Location: `Quality/Unit tests/`
    - Coverage: API endpoints, business logic, database operations
    - Tool: pytest
 
 2. **Integration Tests**:
-   - Location: `App/Backend/tests/integration/`
-   - Coverage: API integration, database transactions
-   - Tool: pytest with test database
+   - Location: `Quality/Integration tests/`
+   - Coverage: API integration, database transactions, component rendering, user interactions
+   - Tool: pytest with test database, Jest + React Testing Library
 
-3. **Frontend Tests**:
-   - Location: `App/Frontend/*/src/__tests__/`
-   - Coverage: Component rendering, user interactions
-   - Tool: Jest + React Testing Library
-
-4. **End-to-End Tests**:
-   - Location: `App/tests/e2e/`
+3. **End-to-End Tests**:
+   - Location: `Quality/E2E test/`
    - Coverage: Complete user workflows
    - Tool: Cypress
 
 ### Continuous Integration
-
-**CI Pipeline**: [GitLab CI/CD](/.gitlab-ci.yml)
 
 **Workflow Files**:
 - [Main CI Pipeline](/.gitlab-ci.yml) - Main build and test pipeline
@@ -157,8 +149,6 @@ A comprehensive solution for managing rental properties through Telegram integra
 - **pytest**: Python backend testing with coverage reporting
 - **Jest**: JavaScript frontend unit testing
 - **Cypress**: End-to-end testing in headless mode
-
-**CI Workflow Runs**: [Pipeline History](https://gitlab.pg.innopolis.university/d.agafonov/assistant-for-rent-project/-/pipelines)
 
 ### Continuous Deployment
 
@@ -191,37 +181,39 @@ A comprehensive solution for managing rental properties through Telegram integra
 - **Response**: System continues to serve cached data and queues write operations
 - **Response Measure**: System maintains 99% uptime with <5 second recovery time
 
-**Test**: [Reliability Test](tests/quality/reliability_test.py)
+**Test**: [Reliability Test](Quality/reliability_test.py)
 
 ### Performance Efficiency
 
 #### Time Behavior
-**Importance**: Fast response times are crucial for user experience in real-time property management scenarios.
+
+**mportance**: Ensures responsive user experience during peak usage when multiple users simultaneously access web applications. Critical for user retention in property management scenarios.
 
 **Quality Attribute Scenario**:
-- **Source**: Property manager
-- **Stimulus**: Requests property listing data
-- **Artifact**: Complete system (Backend + Frontend + Database)
-- **Environment**: Production environment with 100 concurrent users
-- **Response**: System returns property data
-- **Response Measure**: 95% of requests complete within 2 seconds
+- **Source**: Multiple simultaneous users accessing Assisted-for-vert web apps
+- **Stimulus**: High volume of task creation requests during peak hours
+- **Artifact**: Task creation service
+- **Environment**: Production environment during high-usage periods
+- **Response**: System processes requests with minimal delay
+- **Response Measure**: Average response time ≤ 3 seconds with 100+ concurrent users
 
-**Test**: [Performance Test](tests/quality/performance_test.py)
+**Test**: [Performance Test](Quality/performance_test.py)
 
 ### Security
 
 #### Confidentiality
-**Importance**: Protecting sensitive property and tenant information is legally required and builds trust.
+
+**Importance**: Protects sensitive user data (phone numbers, payment plans, emails) and prevents unauthorized account access. Essential for legal compliance and user trust.
 
 **Quality Attribute Scenario**:
-- **Source**: Unauthorized user
-- **Stimulus**: Attempts to access tenant personal information
-- **Artifact**: Backend API authentication system
-- **Environment**: Production environment
-- **Response**: System denies access and logs attempt
-- **Response Measure**: 100% of unauthorized access attempts are blocked within 1 second
+- **Source**: Unauthorized user attempting access
+- **Stimulus**: Attempt to access private account data
+- **Artifact**: Authentication/authorization system
+- **Environment**: Production during registration/authentication
+- **Response**: System blocks access and logs attempt
+- **Response Measure**: 100% unauthorized access blocked within 1 second
 
-**Test**: [Security Test](tests/quality/security_test.py)
+**Test**: [Security Test](Quality/security_test.py)
 
 ## Architecture
 
@@ -229,7 +221,7 @@ A comprehensive solution for managing rental properties through Telegram integra
 
 The system follows a microservices architecture with clear separation of concerns:
 
-![Component Diagram](docs/architecture/static-view/component-diagram.png)
+![Component Diagram](Architecture/static-view/component-diagram.png)
 
 **Components**:
 - **Backend API**: FastAPI-based REST API handling business logic
@@ -247,7 +239,7 @@ The system follows a microservices architecture with clear separation of concern
 
 The following sequence diagram shows the property creation workflow:
 
-![Sequence Diagram](docs/architecture/dynamic-view/property-creation-sequence.png)
+![Sequence Diagram](Architecture/dynamic-view/property-creation-sequence.png)
 
 **Scenario**: Manager creates a new property listing
 1. Manager authenticates through Frontend
@@ -261,7 +253,7 @@ The following sequence diagram shows the property creation workflow:
 
 ### Deployment view
 
-![Deployment Diagram](docs/architecture/deployment-view/deployment-diagram.png)
+![Deployment Diagram](Architecture/deployment-view/deployment-diagram.png)
 
 **Deployment Architecture**:
 - **Ubuntu Server**: Hosts all application components
@@ -324,8 +316,4 @@ The following sequence diagram shows the property creation workflow:
 
 - **Browser**: Modern web browser with JavaScript enabled
 - **Internet Connection**: Required for all features
-- **Telegram Account**: Optional, for notifications and bot interactions
-
-### Support
-
-For technical issues or questions, please create an issue in the GitLab repository or contact the development team. 
+- **Telegram Account**: Optional, for bot interactions 
