@@ -28,14 +28,10 @@ async def start(update, context):
 
     keyboard = [
         [
-            telegram.InlineKeyboardButton("🚀 Открыть приложение", url=CLIENT_WEBAPP_URL)
-        ],
-        [
             telegram.InlineKeyboardButton("💡 Примеры задач", callback_data='task_examples'),
-            telegram.InlineKeyboardButton("💰 Тарифы", callback_data='pricing')
+            telegram.InlineKeyboardButton("📄 Документы", callback_data='documents'),
         ],
         [
-            telegram.InlineKeyboardButton("📄 Документы", callback_data='documents'),
             telegram.InlineKeyboardButton("📞 Поддержка", callback_data='support')
         ]
     ]
@@ -94,36 +90,7 @@ async def handle_callback(update, context):
         
         print(f"🔍 DEBUG: Processing callback: {query.data}")
 
-        if query.data == 'pricing':
-            print("DEBUG: Processing pricing callback")
-            pricing_text = (
-                "💰 Тарифные планы:\n\n"
-                "⭐ Базовый - 15,000₽/мес\n"
-                "• 2 часа работы в день\n"
-                "• 1 задача в день\n"
-                "• Персональный ассистент\n"
-                "• Базовая аналитика\n\n"
-                "🌟 Стандартный - 25,000₽/мес\n"
-                "• 5 часов работы в день\n"
-                "• До 4 задач в день\n"
-                "• Персональный ассистент\n"
-                "• Расширенная аналитика\n\n"
-                "👑 Премиум - 35,000₽/мес\n"
-                "• 8 часов работы в день\n"
-                "• Неограниченные задачи\n"
-                "• Персональный ассистент\n"
-                "• Полная аналитика\n\n"
-                "🚀 Выберите план в приложении!"
-            )
-            
-            keyboard = [
-                [telegram.InlineKeyboardButton("📞 Связаться с поддержкой", callback_data='support')],
-                [telegram.InlineKeyboardButton("🔙 Назад", callback_data='back_to_main')]
-            ]
-            markup = telegram.InlineKeyboardMarkup(keyboard)
-            await query.edit_message_text(pricing_text, reply_markup=markup)
-
-        elif query.data == 'task_examples':
+        if query.data == 'task_examples':
             print("DEBUG: Processing task_examples callback")
             examples_text = (
                 "💡 Примеры задач для ассистента:\n\n"
@@ -140,8 +107,6 @@ async def handle_callback(update, context):
             )
             
             keyboard = [
-                [telegram.InlineKeyboardButton("🚀 Создать задачу в приложении", url=CLIENT_WEBAPP_URL)], # Изменено на CLIENT_WEBAPP_URL
-                [telegram.InlineKeyboardButton("✍️ Написать задачу в чат", callback_data='create_task')],
                 [telegram.InlineKeyboardButton("🔙 Назад", callback_data='back_to_main')]
             ]
             markup = telegram.InlineKeyboardMarkup(keyboard)
@@ -201,43 +166,15 @@ async def handle_callback(update, context):
             markup = telegram.InlineKeyboardMarkup(keyboard)
             await query.edit_message_text(support_text, reply_markup=markup)
 
-        elif query.data == 'create_task':
-            print("DEBUG: Processing create_task callback")
-            create_text = (
-                "✍️ Создание задачи:\n\n"
-                "📝 Просто отправьте мне сообщение с описанием задачи!\n\n"
-                "Примеры:\n"
-                "• 'Найди информацию о компании XYZ'\n"
-                "• 'Расшифруй аудиозапись' (+ прикрепи файл)\n"
-                "• 'Организуй встречу с клиентом на завтра'\n"
-                "• 'Переведи документ на английский'\n\n"
-                "⚡ Укажите приоритет:\n"
-                "• 'срочно' - выполним за 2-4 часа (+100%)\n"
-                "• 'быстро' - выполним за 12 часов (+50%)\n"
-                "• без пометки - выполним за 24 часа\n\n"
-                "💬 Жду ваше сообщение!"
-            )
-            
-            keyboard = [
-                [telegram.InlineKeyboardButton("🚀 Открыть приложение", url=CLIENT_WEBAPP_URL)], # Изменено на CLIENT_WEBAPP_URL
-                [telegram.InlineKeyboardButton("🔙 Назад", callback_data='back_to_main')]
-            ]
-            markup = telegram.InlineKeyboardMarkup(keyboard)
-            await query.edit_message_text(create_text, reply_markup=markup)
-
         elif query.data == 'back_to_main':
             print("DEBUG: Processing back_to_main callback")
             # Возвращаемся к главному меню
             keyboard = [
                 [
-                    telegram.InlineKeyboardButton("🚀 Открыть приложение", url=CLIENT_WEBAPP_URL)
-                ],
-                [
                     telegram.InlineKeyboardButton("💡 Примеры задач", callback_data='task_examples'),
-                    telegram.InlineKeyboardButton("💰 Тарифы", callback_data='pricing')
+                    telegram.InlineKeyboardButton("📄 Документы", callback_data='documents'),
                 ],
                 [
-                    telegram.InlineKeyboardButton("📄 Документы", callback_data='documents'),
                     telegram.InlineKeyboardButton("📞 Поддержка", callback_data='support')
                 ]
             ]
