@@ -185,6 +185,7 @@ interface Client {
     specialization: string;
     status: string;
     current_active_tasks: number;
+    is_primary: boolean;
     allowed_task_types: string[];
     assignment_id: number;
     assigned_at: string;
@@ -236,6 +237,7 @@ const Dashboard: React.FC = () => {
   const [assignClientDialogOpen, setAssignClientDialogOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [assignmentAssistant, setAssignmentAssistant] = useState<number | null>(null);
+  const [assignmentType, setAssignmentType] = useState<'primary' | 'additional'>('primary');
   
   // New state for assistant profile dialog
   const [assistantProfileDialogOpen, setAssistantProfileDialogOpen] = useState(false);
@@ -1079,15 +1081,21 @@ const Dashboard: React.FC = () => {
               <Box sx={{ mt: 2 }}>
                 {overviewData?.clients.subscription_distribution && Object.entries(overviewData.clients.subscription_distribution).map(([plan, count]) => {
                   const planNames: Record<string, { name: string; price: string }> = {
+                    // Original detailed plans
                     'personal_2h': { name: 'Личный 2ч', price: '15К ₽' },
                     'personal_5h': { name: 'Личный 5ч', price: '30К ₽' },
                     'personal_8h': { name: 'Личный 8ч', price: '50К ₽' },
                     'business_2h': { name: 'Бизнес 2ч', price: '30К ₽' },
                     'business_5h': { name: 'Бизнес 5ч', price: '60К ₽' },
                     'business_8h': { name: 'Бизнес 8ч', price: '80К ₽' },
-                    'full_2h': { name: 'Полный 2ч', price: '40К ₽' },
-                    'full_5h': { name: 'Полный 5ч', price: '80К ₽' },
-                    'full_8h': { name: 'Полный 8ч', price: '100К ₽' }
+                    'full_2h': { name: 'Комбо 2ч', price: '40К ₽' },
+                    'full_5h': { name: 'Комбо 5ч', price: '80К ₽' },
+                    'full_8h': { name: 'Комбо 8ч', price: '100К ₽' },
+                    // New simplified categories
+                    'personal': { name: 'Личный ассистент', price: '15-50К ₽' },
+                    'business': { name: 'Бизнес ассистент', price: '30-80К ₽' },
+                    'combo': { name: 'Личный + Бизнес', price: '40-100К ₽' },
+                    'full': { name: 'Личный + Бизнес', price: '40-100К ₽' }
                   };
                   const planInfo = planNames[plan] || { name: plan, price: '—' };
                   return (
@@ -1389,15 +1397,21 @@ const Dashboard: React.FC = () => {
 
   const getSubscriptionPlanName = (plan: string) => {
     const planNames: Record<string, string> = {
+      // Original detailed plans
       'personal_2h': 'Личный 2ч',
       'personal_5h': 'Личный 5ч', 
       'personal_8h': 'Личный 8ч',
       'business_2h': 'Бизнес 2ч',
       'business_5h': 'Бизнес 5ч',
       'business_8h': 'Бизнес 8ч',
-      'full_2h': 'Полный 2ч',
-      'full_5h': 'Полный 5ч',
-      'full_8h': 'Полный 8ч'
+      'full_2h': 'Комбо 2ч',
+      'full_5h': 'Комбо 5ч',
+      'full_8h': 'Комбо 8ч',
+      // New simplified categories
+      'personal': 'Личный ассистент',
+      'business': 'Бизнес ассистент', 
+      'combo': 'Личный + Бизнес',
+      'full': 'Личный + Бизнес' // Alias for combo
     };
     return planNames[plan] || plan;
   };
@@ -1460,18 +1474,24 @@ const Dashboard: React.FC = () => {
     if (!selectedClient || !assignmentAssistant) return;
     
     try {
-      const response = await fetch(`${API_BASE_URL}/api/v1/management/clients/${selectedClient.id}/assign-assistant`, {
-        method: 'PUT',
+      const endpoint = assignmentType === 'primary' 
+        ? `/api/v1/management/clients/${selectedClient.id}/assign-primary-assistant`
+        : `/api/v1/management/clients/${selectedClient.id}/assign-additional-assistant`;
+        
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({ assistant_id: assignmentAssistant })
       });
       
       if (response.ok) {
         const result = await response.json();
-        setError(`Клиент успешно закреплен за ассистентом! Назначено задач: ${result.assigned_tasks}`);
+        const assignmentTypeText = assignmentType === 'primary' ? 'главным ассистентом' : 'дополнительным ассистентом';
+        setError(`Клиент успешно закреплен за ${assignmentTypeText}! Назначено задач: ${result.assigned_tasks}`);
         setAssignClientDialogOpen(false);
         setSelectedClient(null);
         setAssignmentAssistant(null);
+        setAssignmentType('primary');
         await loadClients(); // Refresh clients
         await loadAssistants(); // Refresh assistants to update their task counts
         setTimeout(() => setError(null), 3000);
@@ -1977,23 +1997,61 @@ const Dashboard: React.FC = () => {
                 Клиент: {selectedClient?.name}
               </Typography>
               
-              {/* Show current assignment warning */}
+              {/* Assignment Type Selection */}
+              <FormControl fullWidth margin="normal">
+                <InputLabel>Тип назначения</InputLabel>
+                <Select
+                  value={assignmentType}
+                  onChange={(e) => setAssignmentType(e.target.value as 'primary' | 'additional')}
+                  label="Тип назначения"
+                >
+                  <MenuItem value="primary">
+                    <Box>
+                      <Typography variant="body2">Главный ассистент</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Основной контакт для клиента, утверждает выполнение задач
+                      </Typography>
+                    </Box>
+                  </MenuItem>
+                  <MenuItem value="additional">
+                    <Box>
+                      <Typography variant="body2">Дополнительный ассистент</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Выполняет задачи, но главный ассистент утверждает результат
+                      </Typography>
+                    </Box>
+                  </MenuItem>
+                </Select>
+              </FormControl>
+
+              {/* Show current assignments */}
               {selectedClient?.assigned_assistants && selectedClient.assigned_assistants.length > 0 && (
-                <Alert severity="warning" sx={{ mt: 2, mb: 2 }}>
-                  <Typography variant="body2">
-                    <strong>Внимание!</strong> У клиента уже есть назначенный ассистент: <strong>{selectedClient.assigned_assistants[0].name}</strong>
-                    <br />
-                    Каждый клиент может иметь только одного ассистента. 
-                    Назначение нового ассистента заменит текущего.
+                <Box sx={{ mt: 2, mb: 2 }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Текущие назначения:
                   </Typography>
-                </Alert>
+                  {selectedClient.assigned_assistants.map((assistant) => (
+                    <Box key={assistant.id} sx={{ p: 1, bgcolor: 'grey.100', borderRadius: 1, mb: 1 }}>
+                      <Typography variant="body2">
+                        <strong>{assistant.name}</strong> - {assistant.is_primary ? 'Главный ассистент' : 'Дополнительный ассистент'}
+                        <br />
+                        <Typography variant="caption" color="text.secondary">
+                          {assistant.specialization} • {assistant.current_active_tasks}/5 задач
+                        </Typography>
+                      </Typography>
+                    </Box>
+                  ))}
+                </Box>
               )}
               
-              {/* Show restriction info */}
+              {/* Show assignment rules */}
               <Box sx={{ p: 2, bgcolor: 'info.50', borderRadius: 2, border: '1px solid', borderColor: 'info.200', mb: 2 }}>
                 <Typography variant="body2" color="info.main">
                   <InfoIcon sx={{ mr: 1, fontSize: 16, verticalAlign: 'middle' }} />
-                  Ограничение: на одного клиента можно назначить максимум одного ассистента
+                  {assignmentType === 'primary' 
+                    ? 'У клиента может быть только один главный ассистент'
+                    : 'Можно назначить несколько дополнительных ассистентов'
+                  }
                 </Typography>
               </Box>
               

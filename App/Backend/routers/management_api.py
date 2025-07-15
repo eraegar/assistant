@@ -216,10 +216,13 @@ def get_all_tasks(
     client_id: Optional[int] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
-    search: Optional[str] = None,
-    is_overdue: Optional[bool] = None,
-    rating_min: Optional[int] = None,
-    rating_max: Optional[int] = None,
+    # New enhanced filters
+    search: Optional[str] = Query(None, description="Search in task title and description"),
+    sort_by: Optional[str] = Query("created_at", description="Sort by: created_at, deadline, completed_at, client_rating"),
+    sort_order: Optional[str] = Query("desc", description="Sort order: asc, desc"),
+    has_rating: Optional[bool] = Query(None, description="Filter tasks with/without client rating"),
+    is_overdue: Optional[bool] = Query(None, description="Filter overdue tasks"),
+    manager_id: Optional[int] = Query(None, description="Filter by manager who assigned task"),
     current_manager: models.User = Depends(get_current_manager),
     db: Session = Depends(get_db)
 ):
@@ -254,39 +257,56 @@ def get_all_tasks(
         except ValueError:
             pass
     
-    # Search filter
+    # New enhanced filters
     if search:
-        search_term = f"%{search}%"
+        search_pattern = f"%{search}%"
         query = query.filter(
-            models.Task.title.like(search_term) | 
-            models.Task.description.like(search_term)
+            or_(
+                models.Task.title.ilike(search_pattern),
+                models.Task.description.ilike(search_pattern)
+            )
         )
     
-    # Overdue filter
+    if has_rating is not None:
+        if has_rating:
+            query = query.filter(models.Task.client_rating.isnot(None))
+        else:
+            query = query.filter(models.Task.client_rating.is_(None))
+    
     if is_overdue is not None:
         current_time = datetime.utcnow()
         if is_overdue:
             query = query.filter(
-                models.Task.deadline < current_time,
-                models.Task.status.in_([models.TaskStatus.pending, models.TaskStatus.in_progress])
+                and_(
+                    models.Task.deadline < current_time,
+                    models.Task.status.in_([models.TaskStatus.pending, models.TaskStatus.in_progress])
+                )
             )
         else:
             query = query.filter(
-                (models.Task.deadline >= current_time) | (models.Task.deadline.is_(None))
+                or_(
+                    models.Task.deadline >= current_time,
+                    models.Task.deadline.is_(None),
+                    models.Task.status.in_([models.TaskStatus.completed, models.TaskStatus.approved])
+                )
             )
-    
-    # Rating filters
-    if rating_min is not None:
-        query = query.filter(models.Task.client_rating >= rating_min)
-    
-    if rating_max is not None:
-        query = query.filter(models.Task.client_rating <= rating_max)
     
     # Get total count for pagination
     total_count = query.count()
     
-    # Apply pagination and ordering
-    tasks = query.order_by(models.Task.created_at.desc()).offset(skip).limit(limit).all()
+    # Apply sorting
+    valid_sort_fields = ["created_at", "deadline", "completed_at", "client_rating"]
+    if sort_by not in valid_sort_fields:
+        sort_by = "created_at"
+    
+    sort_column = getattr(models.Task, sort_by)
+    if sort_order.lower() == "asc":
+        query = query.order_by(sort_column.asc())
+    else:
+        query = query.order_by(sort_column.desc())
+    
+    # Apply pagination
+    tasks = query.offset(skip).limit(limit).all()
     
     # Format response
     task_list = []
@@ -330,6 +350,20 @@ def get_all_tasks(
             "limit": limit,
             "offset": skip,
             "has_more": skip + limit < total_count
+        },
+        "filters": {
+            "status": status,
+            "task_type": task_type,
+            "assistant_id": assistant_id,
+            "client_id": client_id,
+            "date_from": date_from,
+            "date_to": date_to,
+            "search": search,
+            "sort_by": sort_by,
+            "sort_order": sort_order,
+            "has_rating": has_rating,
+            "is_overdue": is_overdue,
+            "manager_id": manager_id
         }
     }
 
@@ -699,6 +733,28 @@ async def reset_assistant_password(
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
+@router.post("/clients/{client_id}/assign-primary-assistant")
+def assign_primary_assistant(
+    client_id: int,
+    assignment_data: dict,
+    current_manager: models.User = Depends(get_current_manager),
+    db: Session = Depends(get_db)
+):
+    """Assign primary assistant to client (main contact person)"""
+    assignment_data["is_primary"] = True
+    return assign_client_to_assistant(client_id, assignment_data, current_manager, db)
+
+@router.post("/clients/{client_id}/assign-additional-assistant")
+def assign_additional_assistant(
+    client_id: int,
+    assignment_data: dict,
+    current_manager: models.User = Depends(get_current_manager),
+    db: Session = Depends(get_db)
+):
+    """Assign additional assistant to client (task execution only)"""
+    assignment_data["is_primary"] = False
+    return assign_client_to_assistant(client_id, assignment_data, current_manager, db)
+
 @router.put("/clients/{client_id}/assign-assistant")
 def assign_client_to_assistant(
     client_id: int,
@@ -727,7 +783,7 @@ def assign_client_to_assistant(
     if assistant.current_active_tasks >= 5:
         raise HTTPException(status_code=400, detail="Assistant is at maximum capacity (5 active tasks)")
     
-    # Check if this specific assistant is already assigned to this client
+    # Check if this assistant is already assigned to this client
     existing_assignment = db.query(models.ClientAssistantAssignment).filter(
         models.ClientAssistantAssignment.client_id == client_id,
         models.ClientAssistantAssignment.assistant_id == assistant_id,
@@ -737,34 +793,26 @@ def assign_client_to_assistant(
     if existing_assignment:
         raise HTTPException(
             status_code=400, 
-            detail=f"This assistant is already assigned to this client"
+            detail=f"Assistant '{assistant.user.name}' is already assigned to this client."
         )
     
-    # Check if we're setting a primary assistant
+    # Check if we're trying to assign a primary assistant when one already exists
     is_primary = assignment_data.get("is_primary", False)
-    
-    # If setting as primary, deactivate other primary assignments for this client
     if is_primary:
         existing_primary = db.query(models.ClientAssistantAssignment).filter(
             models.ClientAssistantAssignment.client_id == client_id,
-            models.ClientAssistantAssignment.is_primary == True,
+            models.ClientAssistantAssignment.is_primary.is_(True),
             models.ClientAssistantAssignment.status == models.AssignmentStatus.active
         ).first()
         
         if existing_primary:
-            existing_primary.is_primary = False
-            print(f"🔄 Removed primary status from assistant {existing_primary.assistant_id}")
-    
-    # If no primary assistant exists and this is the first assignment, make it primary
-    primary_count = db.query(models.ClientAssistantAssignment).filter(
-        models.ClientAssistantAssignment.client_id == client_id,
-        models.ClientAssistantAssignment.is_primary == True,
-        models.ClientAssistantAssignment.status == models.AssignmentStatus.active
-    ).count()
-    
-    if primary_count == 0:
-        is_primary = True
-        print("📝 Setting as primary assistant since none exist")
+            existing_primary_assistant = db.query(models.AssistantProfile).filter(
+                models.AssistantProfile.id == existing_primary.assistant_id
+            ).first()
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Client already has a primary assistant: '{existing_primary_assistant.user.name}'. Each client can have only one primary assistant."
+            )
     
     # Determine allowed task types based on assistant specialization and client subscription
     allowed_task_types = []
@@ -791,9 +839,9 @@ def assign_client_to_assistant(
         client_id=client_id,
         assistant_id=assistant_id,
         status=models.AssignmentStatus.active,
+        is_primary=is_primary,
         created_by=current_manager.manager_profile.id,
-        allowed_task_types=json.dumps(allowed_task_types),
-        is_primary=is_primary
+        allowed_task_types=json.dumps(allowed_task_types)
     )
     
     db.add(assignment)
@@ -830,124 +878,12 @@ def assign_client_to_assistant(
         "assignment_id": assignment.id,
         "assigned_tasks": assigned_tasks,
         "allowed_task_types": allowed_task_types,
-        "is_primary": is_primary,
         "assistant": {
             "id": assistant.id,
             "name": assistant.user.name,
             "specialization": assistant.specialization.value,
             "current_active_tasks": assistant.current_active_tasks
         }
-    }
-
-@router.put("/clients/{client_id}/primary-assistant")
-def set_primary_assistant(
-    client_id: int,
-    assignment_data: dict,
-    current_manager: models.User = Depends(get_current_manager),
-    db: Session = Depends(get_db)
-):
-    """Set or change the primary assistant for a client"""
-    
-    # Find client
-    client = db.query(models.ClientProfile).filter(models.ClientProfile.id == client_id).first()
-    if not client:
-        raise HTTPException(status_code=404, detail="Client not found")
-    
-    assistant_id = assignment_data.get("assistant_id")
-    if not assistant_id:
-        raise HTTPException(status_code=400, detail="Assistant ID is required")
-    
-    # Check if this assistant is assigned to this client
-    target_assignment = db.query(models.ClientAssistantAssignment).filter(
-        models.ClientAssistantAssignment.client_id == client_id,
-        models.ClientAssistantAssignment.assistant_id == assistant_id,
-        models.ClientAssistantAssignment.status == models.AssignmentStatus.active
-    ).first()
-    
-    if not target_assignment:
-        raise HTTPException(
-            status_code=400, 
-            detail="This assistant is not assigned to this client"
-        )
-    
-    # Remove primary status from current primary assistant
-    current_primary = db.query(models.ClientAssistantAssignment).filter(
-        models.ClientAssistantAssignment.client_id == client_id,
-        models.ClientAssistantAssignment.is_primary == True,
-        models.ClientAssistantAssignment.status == models.AssignmentStatus.active
-    ).first()
-    
-    if current_primary and current_primary.id != target_assignment.id:
-        current_primary.is_primary = False
-        print(f"🔄 Removed primary status from assistant {current_primary.assistant_id}")
-    
-    # Set new primary assistant
-    target_assignment.is_primary = True
-    db.commit()
-    
-    return {
-        "success": True,
-        "message": f"Primary assistant updated for client {client.user.name}",
-        "primary_assistant_id": assistant_id,
-        "assignment_id": target_assignment.id
-    }
-
-@router.put("/clients/{client_id}/unassign-assistant/{assistant_id}")
-def unassign_assistant_from_client(
-    client_id: int,
-    assistant_id: int,
-    current_manager: models.User = Depends(get_current_manager),
-    db: Session = Depends(get_db)
-):
-    """Remove assistant assignment from client"""
-    
-    # Find the assignment
-    assignment = db.query(models.ClientAssistantAssignment).filter(
-        models.ClientAssistantAssignment.client_id == client_id,
-        models.ClientAssistantAssignment.assistant_id == assistant_id,
-        models.ClientAssistantAssignment.status == models.AssignmentStatus.active
-    ).first()
-    
-    if not assignment:
-        raise HTTPException(status_code=404, detail="Assignment not found")
-    
-    was_primary = assignment.is_primary
-    
-    # Deactivate assignment
-    assignment.status = models.AssignmentStatus.inactive
-    
-    # If this was the primary assistant, promote another assistant to primary
-    if was_primary:
-        other_assignment = db.query(models.ClientAssistantAssignment).filter(
-            models.ClientAssistantAssignment.client_id == client_id,
-            models.ClientAssistantAssignment.status == models.AssignmentStatus.active,
-            models.ClientAssistantAssignment.id != assignment.id
-        ).first()
-        
-        if other_assignment:
-            other_assignment.is_primary = True
-            print(f"🔄 Promoted assistant {other_assignment.assistant_id} to primary")
-    
-    # Move any active tasks from this assistant back to marketplace
-    active_tasks = db.query(models.Task).filter(
-        models.Task.client_id == client_id,
-        models.Task.assistant_id == assistant_id,
-        models.Task.status == models.TaskStatus.in_progress
-    ).all()
-    
-    for task in active_tasks:
-        task.assistant_id = None
-        task.status = models.TaskStatus.pending
-        task.claimed_at = None
-        print(f"📋 Moved task {task.id} back to marketplace")
-    
-    db.commit()
-    
-    return {
-        "success": True,
-        "message": f"Assistant {assistant_id} unassigned from client {client_id}",
-        "was_primary": was_primary,
-        "moved_tasks": len(active_tasks)
     }
 
 @router.get("/assistants")
@@ -1023,51 +959,255 @@ def get_all_clients(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     subscription_status: Optional[str] = None,
-    expires_within_days: Optional[int] = None,
-    search: Optional[str] = None,
+    # New subscription management filters
+    expires_in_days: Optional[int] = Query(None, description="Filter clients whose subscription expires in X days"),
+    subscription_plan: Optional[str] = Query(None, description="Filter by subscription plan"),
+    auto_renew: Optional[bool] = Query(None, description="Filter by auto-renewal status"),
+    sort_by: Optional[str] = Query("created_at", description="Sort by: created_at, expires_at, total_tasks"),
+    sort_order: Optional[str] = Query("desc", description="Sort order: asc, desc"),
+    search: Optional[str] = Query(None, description="Search by client name, email, or phone"),
+    # Enhanced search filters
+    name_search: Optional[str] = Query(None, description="Search by client name"),
+    email_search: Optional[str] = Query(None, description="Search by client email"),
+    phone_search: Optional[str] = Query(None, description="Search by client phone"),
+    telegram_search: Optional[str] = Query(None, description="Search by Telegram username"),
+    assistant_search: Optional[str] = Query(None, description="Search by assigned assistant name"),
+    min_tasks: Optional[int] = Query(None, description="Minimum number of total tasks"),
+    max_tasks: Optional[int] = Query(None, description="Maximum number of total tasks"),
+    min_active_tasks: Optional[int] = Query(None, description="Minimum number of active tasks"),
+    max_active_tasks: Optional[int] = Query(None, description="Maximum number of active tasks"),
+    registered_from: Optional[str] = Query(None, description="Registration date from (YYYY-MM-DD)"),
+    registered_to: Optional[str] = Query(None, description="Registration date to (YYYY-MM-DD)"),
+    has_telegram: Optional[bool] = Query(None, description="Filter clients with/without Telegram username"),
+    has_assignments: Optional[bool] = Query(None, description="Filter clients with/without assistant assignments"),
     current_manager: models.User = Depends(get_current_manager),
     db: Session = Depends(get_db)
 ):
-    """Get all clients with active subscriptions and their assigned assistants"""
+    """Get all clients with advanced search and filtering capabilities"""
     import json
     
-    # По умолчанию показываем только клиентов с активными подписками
-    query = db.query(models.ClientProfile).join(models.Subscription).filter(
-        models.Subscription.status == models.SubscriptionStatus.active
-    )
+    # Base query - start with all clients
+    query = db.query(models.ClientProfile)
     
-    # Дополнительная фильтрация по статусу подписки (если требуется)
-    if subscription_status:
+    # Handle subscription status filtering
+    if subscription_status != "all":
+        # Default to active subscriptions only
         if subscription_status == "expired":
-            # Показать клиентов с истекшими подписками
-            query = db.query(models.ClientProfile).join(models.Subscription).filter(
+            query = query.join(models.Subscription).filter(
                 models.Subscription.status == models.SubscriptionStatus.expired
             )
-        elif subscription_status == "all":
-            # Показать всех клиентов (включая без подписки)
-            query = db.query(models.ClientProfile)
+        elif subscription_status == "cancelled":
+            query = query.join(models.Subscription).filter(
+                models.Subscription.status == models.SubscriptionStatus.cancelled
+            )
+        else:
+            # Default: active subscriptions only
+            query = query.join(models.Subscription).filter(
+                models.Subscription.status == models.SubscriptionStatus.active
+            )
+    else:
+        # Show all clients including those without subscriptions
+        query = query.outerjoin(models.Subscription)
     
-    # Фильтр по имени/телефону/email
+    # Join User table for name, phone, telegram_username searches
+    query = query.join(models.User, models.ClientProfile.user_id == models.User.id)
+    
+    # Advanced search filters
     if search:
-        search_term = f"%{search}%"
+        # General search across multiple fields
+        search_pattern = f"%{search}%"
         query = query.filter(
-            models.ClientProfile.user.has(models.User.name.like(search_term)) |
-            models.ClientProfile.user.has(models.User.phone.like(search_term)) |
-            models.ClientProfile.email.like(search_term)
+            or_(
+                models.User.name.ilike(search_pattern),
+                models.ClientProfile.email.ilike(search_pattern),
+                models.User.phone.ilike(search_pattern),
+                models.User.telegram_username.ilike(search_pattern)
+            )
         )
     
-    # Фильтр по окончанию подписки в ближайшие дни
-    if expires_within_days is not None:
-        from datetime import timedelta
-        target_date = datetime.utcnow() + timedelta(days=expires_within_days)
+    # Specific field searches
+    if name_search:
+        query = query.filter(models.User.name.ilike(f"%{name_search}%"))
+    
+    if email_search:
+        query = query.filter(models.ClientProfile.email.ilike(f"%{email_search}%"))
+    
+    if phone_search:
+        # Handle phone search with or without formatting
+        clean_phone = phone_search.replace("+", "").replace("-", "").replace(" ", "").replace("(", "").replace(")", "")
+        phone_search_pattern = f"%{phone_search}%"
         query = query.filter(
-            models.Subscription.expires_at <= target_date,
-            models.Subscription.status == models.SubscriptionStatus.active
+            or_(
+                models.User.phone.ilike(phone_search_pattern),
+                models.User.phone.ilike(f"%{clean_phone}%")
+            )
         )
     
+    if telegram_search:
+        query = query.filter(models.User.telegram_username.ilike(f"%{telegram_search}%"))
+    
+    # Assistant search
+    if assistant_search:
+        # Join with assignments and assistant profiles
+        query = query.join(
+            models.ClientAssistantAssignment,
+            models.ClientProfile.id == models.ClientAssistantAssignment.client_id
+        ).join(
+            models.AssistantProfile,
+            models.ClientAssistantAssignment.assistant_id == models.AssistantProfile.id
+        ).join(
+            models.User.alias("assistant_user"),
+            models.AssistantProfile.user_id == models.User.alias("assistant_user").id
+        ).filter(
+            models.User.alias("assistant_user").name.ilike(f"%{assistant_search}%"),
+            models.ClientAssistantAssignment.status == models.AssignmentStatus.active
+        ).distinct()
+    
+    # Subscription-specific filters (only if not showing all clients)
+    if subscription_status != "all":
+        if expires_in_days is not None:
+            # Filter clients whose subscription expires in X days
+            target_date = datetime.utcnow() + timedelta(days=expires_in_days)
+            query = query.filter(
+                models.Subscription.expires_at <= target_date,
+                models.Subscription.expires_at >= datetime.utcnow(),
+                models.Subscription.status == models.SubscriptionStatus.active
+            )
+        
+        if subscription_plan:
+            query = query.filter(models.Subscription.plan == subscription_plan)
+        
+        if auto_renew is not None:
+            query = query.filter(models.Subscription.auto_renew == auto_renew)
+    
+    # Date range filters
+    if registered_from:
+        try:
+            from_date = datetime.strptime(registered_from, "%Y-%m-%d")
+            query = query.filter(models.User.created_at >= from_date)
+        except ValueError:
+            pass
+    
+    if registered_to:
+        try:
+            to_date = datetime.strptime(registered_to, "%Y-%m-%d") + timedelta(days=1)
+            query = query.filter(models.User.created_at < to_date)
+        except ValueError:
+            pass
+    
+    # Telegram username filter
+    if has_telegram is not None:
+        if has_telegram:
+            query = query.filter(models.User.telegram_username.isnot(None))
+        else:
+            query = query.filter(models.User.telegram_username.is_(None))
+    
+    # Assignment filter
+    if has_assignments is not None:
+        if has_assignments:
+            query = query.filter(
+                models.ClientProfile.id.in_(
+                    db.query(models.ClientAssistantAssignment.client_id).filter(
+                        models.ClientAssistantAssignment.status == models.AssignmentStatus.active
+                    )
+                )
+            )
+        else:
+            query = query.filter(
+                ~models.ClientProfile.id.in_(
+                    db.query(models.ClientAssistantAssignment.client_id).filter(
+                        models.ClientAssistantAssignment.status == models.AssignmentStatus.active
+                    )
+                )
+            )
+    
+    # Get total count before pagination
     total_count = query.count()
+    
+    # Get client IDs for task count filtering (if needed)
+    if any([min_tasks, max_tasks, min_active_tasks, max_active_tasks]):
+        client_ids = [c.id for c in query.all()]
+        
+        # Build task count subqueries
+        task_count_filters = []
+        
+        if min_tasks is not None or max_tasks is not None:
+            total_task_subquery = db.query(
+                models.Task.client_id,
+                func.count(models.Task.id).label('total_tasks')
+            ).filter(
+                models.Task.client_id.in_(client_ids)
+            ).group_by(models.Task.client_id)
+            
+            if min_tasks is not None:
+                total_task_subquery = total_task_subquery.having(func.count(models.Task.id) >= min_tasks)
+            if max_tasks is not None:
+                total_task_subquery = total_task_subquery.having(func.count(models.Task.id) <= max_tasks)
+            
+            task_count_filters.extend([r.client_id for r in total_task_subquery.all()])
+        
+        if min_active_tasks is not None or max_active_tasks is not None:
+            active_task_subquery = db.query(
+                models.Task.client_id,
+                func.count(models.Task.id).label('active_tasks')
+            ).filter(
+                models.Task.client_id.in_(client_ids),
+                models.Task.status.in_([models.TaskStatus.pending, models.TaskStatus.in_progress])
+            ).group_by(models.Task.client_id)
+            
+            if min_active_tasks is not None:
+                active_task_subquery = active_task_subquery.having(func.count(models.Task.id) >= min_active_tasks)
+            if max_active_tasks is not None:
+                active_task_subquery = active_task_subquery.having(func.count(models.Task.id) <= max_active_tasks)
+            
+            active_task_filters = [r.client_id for r in active_task_subquery.all()]
+            
+            if task_count_filters:
+                # Intersection of both filters
+                task_count_filters = list(set(task_count_filters) & set(active_task_filters))
+            else:
+                task_count_filters = active_task_filters
+        
+        if task_count_filters:
+            query = query.filter(models.ClientProfile.id.in_(task_count_filters))
+        else:
+            # No clients match the task count criteria
+            query = query.filter(models.ClientProfile.id == -1)  # Return empty result
+    
+    # Apply sorting
+    if sort_by == "expires_at" and subscription_status != "all":
+        # For subscription-based sorting
+        if sort_order == "asc":
+            query = query.order_by(models.Subscription.expires_at.asc().nulls_last())
+        else:
+            query = query.order_by(models.Subscription.expires_at.desc().nulls_last())
+    elif sort_by == "total_tasks":
+        # Sort by task count - needs subquery
+        task_count_subquery = db.query(
+            models.Task.client_id,
+            func.count(models.Task.id).label('task_count')
+        ).group_by(models.Task.client_id).subquery()
+        
+        query = query.outerjoin(
+            task_count_subquery,
+            models.ClientProfile.id == task_count_subquery.c.client_id
+        )
+        
+        if sort_order == "asc":
+            query = query.order_by(func.coalesce(task_count_subquery.c.task_count, 0).asc())
+        else:
+            query = query.order_by(func.coalesce(task_count_subquery.c.task_count, 0).desc())
+    else:
+        # Default sorting by created_at
+        if sort_order == "asc":
+            query = query.order_by(models.User.created_at.asc())
+        else:
+            query = query.order_by(models.User.created_at.desc())
+    
+    # Apply pagination
     clients = query.offset(skip).limit(limit).all()
     
+    # Build response data
     client_list = []
     for client in clients:
         # Get task statistics
@@ -1098,10 +1238,10 @@ def get_all_clients(
                 "specialization": assignment.assistant.specialization.value,
                 "status": assignment.assistant.status,
                 "current_active_tasks": assignment.assistant.current_active_tasks,
+                "is_primary": assignment.is_primary,
                 "allowed_task_types": allowed_types,
                 "assignment_id": assignment.id,
-                "assigned_at": assignment.created_at.isoformat(),
-                "is_primary": assignment.is_primary
+                "assigned_at": assignment.created_at.isoformat()
             })
         
         client_data = {
@@ -1116,12 +1256,15 @@ def get_all_clients(
             "assigned_assistants": assigned_assistants
         }
         
-        # Add subscription info
+        # Add subscription info with enhanced fields
         if client.subscription:
             expires_at = client.subscription.expires_at
             days_until_expiry = None
+            is_expiring_soon = False
+            
             if expires_at:
                 days_until_expiry = (expires_at - datetime.utcnow()).days
+                is_expiring_soon = days_until_expiry <= 7 and days_until_expiry >= 0
             
             client_data["subscription"] = {
                 "id": client.subscription.id,
@@ -1130,7 +1273,8 @@ def get_all_clients(
                 "started_at": client.subscription.started_at.isoformat(),
                 "expires_at": expires_at.isoformat() if expires_at else None,
                 "auto_renew": client.subscription.auto_renew,
-                "days_until_expiry": days_until_expiry
+                "days_until_expiry": days_until_expiry,
+                "is_expiring_soon": is_expiring_soon
             }
         else:
             client_data["subscription"] = None
@@ -1144,7 +1288,189 @@ def get_all_clients(
             "limit": limit,
             "offset": skip,
             "has_more": skip + limit < total_count
+        },
+        "filters": {
+            "subscription_status": subscription_status,
+            "expires_in_days": expires_in_days,
+            "subscription_plan": subscription_plan,
+            "auto_renew": auto_renew,
+            "sort_by": sort_by,
+            "sort_order": sort_order,
+            "search": search,
+            "name_search": name_search,
+            "email_search": email_search,
+            "phone_search": phone_search,
+            "telegram_search": telegram_search,
+            "assistant_search": assistant_search,
+            "min_tasks": min_tasks,
+            "max_tasks": max_tasks,
+            "min_active_tasks": min_active_tasks,
+            "max_active_tasks": max_active_tasks,
+            "registered_from": registered_from,
+            "registered_to": registered_to,
+            "has_telegram": has_telegram,
+            "has_assignments": has_assignments
         }
+    }
+
+@router.get("/clients/search")
+def search_clients_advanced(
+    q: str = Query(..., description="Search query"),
+    search_type: str = Query("all", description="Search type: all, name, email, phone, telegram, assistant"),
+    limit: int = Query(20, ge=1, le=100),
+    current_manager: models.User = Depends(get_current_manager),
+    db: Session = Depends(get_db)
+):
+    """Advanced client search with specific search types and suggestions"""
+    
+    # Base query
+    query = db.query(models.ClientProfile).join(models.User, models.ClientProfile.user_id == models.User.id)
+    
+    search_pattern = f"%{q}%"
+    
+    if search_type == "all":
+        query = query.filter(
+            or_(
+                models.User.name.ilike(search_pattern),
+                models.ClientProfile.email.ilike(search_pattern),
+                models.User.phone.ilike(search_pattern),
+                models.User.telegram_username.ilike(search_pattern)
+            )
+        )
+    elif search_type == "name":
+        query = query.filter(models.User.name.ilike(search_pattern))
+    elif search_type == "email":
+        query = query.filter(models.ClientProfile.email.ilike(search_pattern))
+    elif search_type == "phone":
+        clean_phone = q.replace("+", "").replace("-", "").replace(" ", "").replace("(", "").replace(")", "")
+        query = query.filter(
+            or_(
+                models.User.phone.ilike(search_pattern),
+                models.User.phone.ilike(f"%{clean_phone}%")
+            )
+        )
+    elif search_type == "telegram":
+        query = query.filter(models.User.telegram_username.ilike(search_pattern))
+    elif search_type == "assistant":
+        # Search by assigned assistant name
+        query = query.join(
+            models.ClientAssistantAssignment,
+            models.ClientProfile.id == models.ClientAssistantAssignment.client_id
+        ).join(
+            models.AssistantProfile,
+            models.ClientAssistantAssignment.assistant_id == models.AssistantProfile.id
+        ).join(
+            models.User.alias("assistant_user"),
+            models.AssistantProfile.user_id == models.User.alias("assistant_user").id
+        ).filter(
+            models.User.alias("assistant_user").name.ilike(search_pattern),
+            models.ClientAssistantAssignment.status == models.AssignmentStatus.active
+        ).distinct()
+    
+    # Get results
+    clients = query.limit(limit).all()
+    
+    # Format results for suggestions/quick search
+    results = []
+    for client in clients:
+        # Get subscription info
+        subscription_info = None
+        if client.subscription:
+            subscription_info = {
+                "plan": client.subscription.plan.value,
+                "status": client.subscription.status.value
+            }
+        
+        # Get primary assistant
+        primary_assistant = None
+        primary_assignment = db.query(models.ClientAssistantAssignment).filter(
+            models.ClientAssistantAssignment.client_id == client.id,
+            models.ClientAssistantAssignment.is_primary.is_(True),
+            models.ClientAssistantAssignment.status == models.AssignmentStatus.active
+        ).first()
+        
+        if primary_assignment:
+            primary_assistant = {
+                "id": primary_assignment.assistant.id,
+                "name": primary_assignment.assistant.user.name
+            }
+        
+        results.append({
+            "id": client.id,
+            "name": client.user.name,
+            "email": client.email,
+            "phone": client.user.phone,
+            "telegram_username": client.user.telegram_username,
+            "subscription": subscription_info,
+            "primary_assistant": primary_assistant,
+            "created_at": client.user.created_at.isoformat()
+        })
+    
+    return {
+        "success": True,
+        "results": results,
+        "total": len(results),
+        "search_query": q,
+        "search_type": search_type
+    }
+
+@router.get("/clients/subscription-alerts")
+def get_subscription_alerts(
+    days_ahead: int = Query(7, description="Days ahead to check for expiring subscriptions"),
+    current_manager: models.User = Depends(get_current_manager),
+    db: Session = Depends(get_db)
+):
+    """Get clients with expiring subscriptions for proactive management"""
+    
+    target_date = datetime.utcnow() + timedelta(days=days_ahead)
+    
+    # Get clients with expiring subscriptions
+    expiring_clients = db.query(models.ClientProfile).join(models.Subscription).filter(
+        models.Subscription.expires_at <= target_date,
+        models.Subscription.expires_at >= datetime.utcnow(),
+        models.Subscription.status == models.SubscriptionStatus.active
+    ).all()
+    
+    # Get clients with expired subscriptions
+    expired_clients = db.query(models.ClientProfile).join(models.Subscription).filter(
+        models.Subscription.expires_at < datetime.utcnow(),
+        models.Subscription.status == models.SubscriptionStatus.active
+    ).all()
+    
+    # Get clients without auto-renewal enabled
+    manual_renewal_clients = db.query(models.ClientProfile).join(models.Subscription).filter(
+        models.Subscription.auto_renew == False,
+        models.Subscription.status == models.SubscriptionStatus.active,
+        models.Subscription.expires_at <= target_date
+    ).all()
+    
+    def format_client_alert(client):
+        expires_at = client.subscription.expires_at
+        days_left = (expires_at - datetime.utcnow()).days if expires_at else None
+        
+        return {
+            "id": client.id,
+            "name": client.user.name,
+            "email": client.email,
+            "phone": client.user.phone,
+            "subscription": {
+                "plan": client.subscription.plan.value,
+                "expires_at": expires_at.isoformat() if expires_at else None,
+                "days_left": days_left,
+                "auto_renew": client.subscription.auto_renew
+            }
+        }
+    
+    return {
+        "summary": {
+            "expiring_count": len(expiring_clients),
+            "expired_count": len(expired_clients),
+            "manual_renewal_count": len(manual_renewal_clients),
+            "days_ahead": days_ahead
+        },
+        "expiring_subscriptions": [format_client_alert(client) for client in expiring_clients],
+        "expired_subscriptions": [format_client_alert(client) for client in expired_clients],
+        "manual_renewals_needed": [format_client_alert(client) for client in manual_renewal_clients]
     }
 
 @router.put("/clients/{client_id}/subscription")
@@ -1368,7 +1694,145 @@ def get_performance_analytics(
             "total_ratings": len(assistant_ratings),
             "tasks_with_ratings_percent": round((len(assistant_ratings) / completed_tasks * 100) if completed_tasks > 0 else 0, 1)
         }
-    } 
+    }
+
+# =============================================================================
+# TELEGRAM BOT ANALYTICS
+# =============================================================================
+
+@router.get("/analytics/telegram/summary")
+def get_telegram_analytics_summary(
+    days: int = Query(7, ge=1, le=90),
+    current_manager: models.User = Depends(get_current_manager),
+    db: Session = Depends(get_db)
+):
+    """Get Telegram bot analytics summary for conversion analysis"""
+    from services.telegram_analytics import get_analytics_service
+    
+    analytics_service = get_analytics_service(db)
+    summary = analytics_service.get_interaction_summary(days)
+    
+    return {
+        "success": True,
+        "data": summary,
+        "message": f"Telegram bot analytics for last {days} days"
+    }
+
+@router.get("/analytics/telegram/conversion-funnel")
+def get_telegram_conversion_funnel(
+    days: int = Query(30, ge=1, le=180),
+    current_manager: models.User = Depends(get_current_manager),
+    db: Session = Depends(get_db)
+):
+    """Get conversion funnel statistics from Telegram bot interactions"""
+    from services.telegram_analytics import get_analytics_service
+    
+    analytics_service = get_analytics_service(db)
+    funnel_stats = analytics_service.get_conversion_funnel_stats(days)
+    
+    # Calculate conversion rates between stages
+    conversion_rates = {}
+    stages = list(funnel_stats.keys())
+    
+    for i in range(len(stages) - 1):
+        current_stage = stages[i]
+        next_stage = stages[i + 1]
+        
+        current_users = funnel_stats[current_stage]['unique_users']
+        next_users = funnel_stats[next_stage]['unique_users']
+        
+        if current_users > 0:
+            conversion_rate = (next_users / current_users) * 100
+            conversion_rates[f"{current_stage}_to_{next_stage}"] = round(conversion_rate, 2)
+    
+    return {
+        "success": True,
+        "data": {
+            "funnel_stats": funnel_stats,
+            "conversion_rates": conversion_rates,
+            "period_days": days
+        },
+        "message": f"Conversion funnel analysis for last {days} days"
+    }
+
+@router.get("/analytics/telegram/engagement")
+def get_telegram_engagement_insights(
+    days: int = Query(30, ge=1, le=180),
+    current_manager: models.User = Depends(get_current_manager),
+    db: Session = Depends(get_db)
+):
+    """Get engagement insights for users who interact but don't register"""
+    from services.telegram_analytics import get_analytics_service
+    
+    analytics_service = get_analytics_service(db)
+    insights = analytics_service.get_engagement_insights(days)
+    
+    return {
+        "success": True,
+        "data": insights,
+        "message": f"Engagement insights for last {days} days"
+    }
+
+@router.get("/analytics/telegram/user-journey/{telegram_user_id}")
+def get_user_journey(
+    telegram_user_id: str,
+    days: int = Query(30, ge=1, le=180),
+    current_manager: models.User = Depends(get_current_manager),
+    db: Session = Depends(get_db)
+):
+    """Get interaction journey for a specific Telegram user"""
+    from services.telegram_analytics import get_analytics_service
+    
+    analytics_service = get_analytics_service(db)
+    journey = analytics_service.get_user_journey(telegram_user_id, days)
+    
+    return {
+        "success": True,
+        "data": {
+            "telegram_user_id": telegram_user_id,
+            "journey": journey,
+            "total_interactions": len(journey)
+        },
+        "message": f"User journey for Telegram user {telegram_user_id}"
+    }
+
+@router.post("/analytics/telegram/track")
+def track_telegram_interaction(
+    interaction_data: dict,
+    current_manager: models.User = Depends(get_current_manager),
+    db: Session = Depends(get_db)
+):
+    """Manually track a Telegram interaction (for testing or external tracking)"""
+    from services.telegram_analytics import get_analytics_service
+    
+    analytics_service = get_analytics_service(db)
+    
+    # Validate required fields
+    required_fields = ["telegram_user_id", "action"]
+    for field in required_fields:
+        if field not in interaction_data:
+            raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
+    
+    # Track the interaction
+    record = analytics_service.track_interaction(
+        telegram_user_id=interaction_data["telegram_user_id"],
+        action=interaction_data["action"],
+        action_data=interaction_data.get("action_data"),
+        user_info=interaction_data.get("user_info"),
+        session_id=interaction_data.get("session_id"),
+        conversion_stage=interaction_data.get("conversion_stage")
+    )
+    
+    return {
+        "success": True,
+        "data": {
+            "record_id": record.id,
+            "telegram_user_id": record.telegram_user_id,
+            "action": record.action,
+            "tracked_at": record.created_at.isoformat()
+        },
+        "message": "Interaction tracked successfully"
+    }
 
 # =============================================================================
 # CLIENT-ASSISTANT PERMANENT ASSIGNMENTS
@@ -1422,6 +1886,7 @@ def get_all_assignments(
                 "current_active_tasks": assignment.assistant.current_active_tasks
             },
             "status": assignment.status.value,
+            "is_primary": assignment.is_primary,
             "allowed_task_types": allowed_types,
             "created_at": assignment.created_at.isoformat(),
             "updated_at": assignment.updated_at.isoformat(),
@@ -1553,3 +2018,392 @@ def reactivate_assignment(
         "success": True,
         "message": f"Assignment between {assignment.client.user.name} and {assignment.assistant.user.name} has been reactivated"
     } 
+
+# =============================================================================
+# NOTIFICATION SYSTEM
+# =============================================================================
+
+@router.get("/notifications/potential-clients")
+def get_potential_clients(
+    hours_back: int = Query(24, ge=1, le=168, description="Hours to look back for potential clients"),
+    min_score: float = Query(5.0, ge=0, le=100, description="Minimum engagement score"),
+    limit: int = Query(50, ge=1, le=100),
+    current_manager: models.User = Depends(get_current_manager),
+    db: Session = Depends(get_db)
+):
+    """Get list of potential clients who engaged but didn't register"""
+    from services.notification_service import get_notification_service
+    
+    notification_service = get_notification_service(db)
+    
+    # Get potential clients
+    potential_clients = notification_service.detect_potential_clients(hours_back)
+    
+    # Filter by minimum score and limit
+    filtered_clients = [
+        client for client in potential_clients 
+        if client.engagement_score >= min_score
+    ][:limit]
+    
+    # Format response
+    clients_data = []
+    for client in filtered_clients:
+        clients_data.append({
+            "id": client.id,
+            "telegram_user_id": client.telegram_user_id,
+            "username": client.username,
+            "first_name": client.first_name,
+            "last_name": client.last_name,
+            "engagement_score": client.engagement_score,
+            "total_interactions": client.total_interactions,
+            "total_sessions": client.total_sessions,
+            "viewed_pricing": client.viewed_pricing,
+            "viewed_examples": client.viewed_examples,
+            "contacted_support": client.contacted_support,
+            "clicked_register": client.clicked_register,
+            "first_interaction_at": client.first_interaction_at.isoformat(),
+            "last_interaction_at": client.last_interaction_at.isoformat(),
+            "alert_sent": client.alert_sent,
+            "alert_sent_at": client.alert_sent_at.isoformat() if client.alert_sent_at else None,
+            "follow_up_required": client.follow_up_required,
+            "follow_up_notes": client.follow_up_notes
+        })
+    
+    return {
+        "success": True,
+        "data": {
+            "potential_clients": clients_data,
+            "total_found": len(potential_clients),
+            "total_shown": len(clients_data),
+            "hours_analyzed": hours_back,
+            "min_score_filter": min_score
+        }
+    }
+
+@router.post("/notifications/process")
+def process_potential_clients_notifications(
+    hours_back: int = Query(24, ge=1, le=168, description="Hours to analyze"),
+    current_manager: models.User = Depends(get_current_manager),
+    db: Session = Depends(get_db)
+):
+    """Manually trigger potential client detection and notifications"""
+    from services.notification_service import get_notification_service
+    
+    notification_service = get_notification_service(db)
+    
+    # Process potential clients and send notifications
+    result = notification_service.process_potential_clients(hours_back)
+    
+    return {
+        "success": True,
+        "data": result,
+        "message": f"Processed {result['potential_clients_detected']} potential clients, sent {result['notifications_sent']} notifications"
+    }
+
+@router.get("/notifications/preferences")
+def get_notification_preferences(
+    current_manager: models.User = Depends(get_current_manager),
+    db: Session = Depends(get_db)
+):
+    """Get notification preferences for current manager"""
+    from services.notification_service import get_notification_service
+    
+    notification_service = get_notification_service(db)
+    preferences = notification_service.get_manager_notification_preferences(current_manager.manager_profile.id)
+    
+    # Format preferences
+    preferences_data = []
+    for pref in preferences:
+        preferences_data.append({
+            "id": pref.id,
+            "notification_type": pref.notification_type.value,
+            "channel": pref.channel.value,
+            "is_enabled": pref.is_enabled,
+            "threshold_settings": json.loads(pref.threshold_settings) if pref.threshold_settings else None,
+            "schedule_hour": pref.schedule_hour,
+            "schedule_day_of_week": pref.schedule_day_of_week,
+            "created_at": pref.created_at.isoformat(),
+            "updated_at": pref.updated_at.isoformat()
+        })
+    
+    return {
+        "success": True,
+        "data": {
+            "preferences": preferences_data,
+            "available_types": [t.value for t in models.NotificationType],
+            "available_channels": [c.value for c in models.NotificationChannel]
+        }
+    }
+
+@router.put("/notifications/preferences")
+def update_notification_preferences(
+    preferences_data: dict,
+    current_manager: models.User = Depends(get_current_manager),
+    db: Session = Depends(get_db)
+):
+    """Update notification preferences for current manager"""
+    from services.notification_service import get_notification_service
+    
+    notification_service = get_notification_service(db)
+    
+    # Validate input
+    required_fields = ["notification_type", "channel", "is_enabled"]
+    for field in required_fields:
+        if field not in preferences_data:
+            raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
+    
+    try:
+        notification_type = getattr(models.NotificationType, preferences_data["notification_type"])
+        channel = getattr(models.NotificationChannel, preferences_data["channel"])
+    except AttributeError:
+        raise HTTPException(status_code=400, detail="Invalid notification type or channel")
+    
+    # Update preference
+    preference = notification_service.update_manager_notification_preference(
+        manager_id=current_manager.manager_profile.id,
+        notification_type=notification_type,
+        channel=channel,
+        is_enabled=preferences_data["is_enabled"],
+        threshold_settings=preferences_data.get("threshold_settings")
+    )
+    
+    return {
+        "success": True,
+        "data": {
+            "id": preference.id,
+            "notification_type": preference.notification_type.value,
+            "channel": preference.channel.value,
+            "is_enabled": preference.is_enabled,
+            "updated_at": preference.updated_at.isoformat()
+        },
+        "message": "Notification preference updated successfully"
+    }
+
+@router.get("/notifications/history")
+def get_notification_history(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    notification_type: Optional[str] = Query(None, description="Filter by notification type"),
+    channel: Optional[str] = Query(None, description="Filter by channel"),
+    status: Optional[str] = Query(None, description="Filter by status: sent, delivered, read, failed"),
+    days_back: int = Query(7, ge=1, le=30, description="Days to look back"),
+    current_manager: models.User = Depends(get_current_manager),
+    db: Session = Depends(get_db)
+):
+    """Get notification history for current manager"""
+    
+    cutoff_date = datetime.utcnow() - timedelta(days=days_back)
+    
+    query = db.query(models.NotificationHistory).filter(
+        models.NotificationHistory.manager_id == current_manager.manager_profile.id,
+        models.NotificationHistory.sent_at >= cutoff_date
+    )
+    
+    # Apply filters
+    if notification_type:
+        try:
+            type_enum = getattr(models.NotificationType, notification_type)
+            query = query.filter(models.NotificationHistory.notification_type == type_enum)
+        except AttributeError:
+            raise HTTPException(status_code=400, detail="Invalid notification type")
+    
+    if channel:
+        try:
+            channel_enum = getattr(models.NotificationChannel, channel)
+            query = query.filter(models.NotificationHistory.channel == channel_enum)
+        except AttributeError:
+            raise HTTPException(status_code=400, detail="Invalid channel")
+    
+    if status:
+        query = query.filter(models.NotificationHistory.status == status)
+    
+    # Get total count and apply pagination
+    total_count = query.count()
+    notifications = query.order_by(models.NotificationHistory.sent_at.desc()).offset(skip).limit(limit).all()
+    
+    # Format response
+    notifications_data = []
+    for notification in notifications:
+        notifications_data.append({
+            "id": notification.id,
+            "notification_type": notification.notification_type.value,
+            "channel": notification.channel.value,
+            "title": notification.title,
+            "message": notification.message,
+            "related_telegram_user_id": notification.related_telegram_user_id,
+            "related_data": json.loads(notification.related_data) if notification.related_data else None,
+            "sent_at": notification.sent_at.isoformat(),
+            "delivered_at": notification.delivered_at.isoformat() if notification.delivered_at else None,
+            "read_at": notification.read_at.isoformat() if notification.read_at else None,
+            "status": notification.status,
+            "delivery_details": json.loads(notification.delivery_details) if notification.delivery_details else None
+        })
+    
+    return {
+        "success": True,
+        "data": {
+            "notifications": notifications_data,
+            "pagination": {
+                "total": total_count,
+                "limit": limit,
+                "offset": skip,
+                "has_more": skip + limit < total_count
+            }
+        }
+    }
+
+@router.post("/notifications/mark-read/{notification_id}")
+def mark_notification_read(
+    notification_id: int,
+    current_manager: models.User = Depends(get_current_manager),
+    db: Session = Depends(get_db)
+):
+    """Mark a notification as read"""
+    
+    notification = db.query(models.NotificationHistory).filter(
+        models.NotificationHistory.id == notification_id,
+        models.NotificationHistory.manager_id == current_manager.manager_profile.id
+    ).first()
+    
+    if not notification:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    
+    if notification.read_at is None:
+        notification.read_at = datetime.utcnow()
+        notification.status = "read"
+        db.commit()
+    
+    return {
+        "success": True,
+        "message": "Notification marked as read"
+    }
+
+@router.put("/notifications/potential-clients/{alert_id}/follow-up")
+def update_potential_client_follow_up(
+    alert_id: int,
+    follow_up_data: dict,
+    current_manager: models.User = Depends(get_current_manager),
+    db: Session = Depends(get_db)
+):
+    """Update follow-up information for a potential client alert"""
+    
+    alert = db.query(models.PotentialClientAlert).filter(
+        models.PotentialClientAlert.id == alert_id
+    ).first()
+    
+    if not alert:
+        raise HTTPException(status_code=404, detail="Potential client alert not found")
+    
+    # Update follow-up information
+    if "follow_up_required" in follow_up_data:
+        alert.follow_up_required = follow_up_data["follow_up_required"]
+    
+    if "follow_up_notes" in follow_up_data:
+        alert.follow_up_notes = follow_up_data["follow_up_notes"]
+    
+    if "assigned_manager_id" in follow_up_data:
+        alert.assigned_manager_id = follow_up_data["assigned_manager_id"]
+    
+    alert.updated_at = datetime.utcnow()
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": "Follow-up information updated successfully"
+    }
+
+@router.get("/notifications/summary")
+def get_notifications_summary(
+    days_back: int = Query(7, ge=1, le=30),
+    current_manager: models.User = Depends(get_current_manager),
+    db: Session = Depends(get_db)
+):
+    """Get notification summary statistics"""
+    
+    cutoff_date = datetime.utcnow() - timedelta(days=days_back)
+    
+    # Total notifications
+    total_notifications = db.query(models.NotificationHistory).filter(
+        models.NotificationHistory.manager_id == current_manager.manager_profile.id,
+        models.NotificationHistory.sent_at >= cutoff_date
+    ).count()
+    
+    # Unread notifications
+    unread_notifications = db.query(models.NotificationHistory).filter(
+        models.NotificationHistory.manager_id == current_manager.manager_profile.id,
+        models.NotificationHistory.sent_at >= cutoff_date,
+        models.NotificationHistory.read_at.is_(None)
+    ).count()
+    
+    # Notifications by type
+    notifications_by_type = db.query(
+        models.NotificationHistory.notification_type,
+        func.count(models.NotificationHistory.id)
+    ).filter(
+        models.NotificationHistory.manager_id == current_manager.manager_profile.id,
+        models.NotificationHistory.sent_at >= cutoff_date
+    ).group_by(models.NotificationHistory.notification_type).all()
+    
+    type_distribution = {nt.value: count for nt, count in notifications_by_type}
+    
+    # Active potential clients (alerts not yet followed up)
+    active_alerts = db.query(models.PotentialClientAlert).filter(
+        models.PotentialClientAlert.alert_sent == True,
+        models.PotentialClientAlert.follow_up_required == False,
+        models.PotentialClientAlert.created_at >= cutoff_date
+    ).count()
+    
+    return {
+        "success": True,
+        "data": {
+            "period_days": days_back,
+            "total_notifications": total_notifications,
+            "unread_notifications": unread_notifications,
+            "notifications_by_type": type_distribution,
+            "active_potential_clients": active_alerts
+        }
+    }
+
+@router.post("/notifications/test")
+def send_test_notification(
+    test_data: dict,
+    current_manager: models.User = Depends(get_current_manager),
+    db: Session = Depends(get_db)
+):
+    """Send a test notification to verify notification system"""
+    
+    # Validate input
+    if "channel" not in test_data:
+        raise HTTPException(status_code=400, detail="Channel is required")
+    
+    try:
+        channel = getattr(models.NotificationChannel, test_data["channel"])
+    except AttributeError:
+        raise HTTPException(status_code=400, detail="Invalid channel")
+    
+    # Create test notification
+    test_notification = models.NotificationHistory(
+        manager_id=current_manager.manager_profile.id,
+        notification_type=models.NotificationType.POTENTIAL_CLIENT_ENGAGED,
+        channel=channel,
+        title="🧪 Тестовое уведомление",
+        message="Это тестовое уведомление для проверки работы системы уведомлений.",
+        related_data=json.dumps({"test": True})
+    )
+    
+    # Mock sending logic
+    test_notification.status = "delivered"
+    test_notification.delivered_at = datetime.utcnow()
+    test_notification.delivery_details = json.dumps({
+        "method": channel.value,
+        "test": True
+    })
+    
+    db.add(test_notification)
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": f"Test notification sent via {channel.value}",
+        "notification_id": test_notification.id
+    }

@@ -11,44 +11,45 @@ class TaskAssignmentService:
         self.db = db
     
     def find_assigned_assistant(self, task):
-        """Find permanently assigned assistant for this client and task type"""
+        """Find permanently assigned assistant for this client and task type
+        
+        Priority order:
+        1. Primary assistant (if available and compatible)
+        2. Any other assigned assistant (if compatible)
+        """
         try:
             # Import models here to avoid circular imports
             from models import ClientAssistantAssignment, AssignmentStatus, AssistantProfile, TaskType
             
-            # Get active assignments for this client
-            assignments = self.db.query(ClientAssistantAssignment).filter(
+            # First, try to find primary assistant
+            primary_assignment = self.db.query(ClientAssistantAssignment).filter(
                 ClientAssistantAssignment.client_id == task.client_id,
-                ClientAssistantAssignment.status == AssignmentStatus.active
+                ClientAssistantAssignment.status == AssignmentStatus.active,
+                ClientAssistantAssignment.is_primary.is_(True)
+            ).first()
+            
+            if primary_assignment:
+                assistant = primary_assignment.assistant
+                
+                # Check if primary assistant is available and compatible
+                if self._is_assistant_compatible(primary_assignment, assistant, task):
+                    logger.info(f"Found PRIMARY assigned assistant {assistant.id} for client {task.client_id}, task type {task.type.value}")
+                    return assistant
+                else:
+                    logger.info(f"Primary assistant {assistant.id} is not available or compatible, looking for alternatives")
+            
+            # If primary assistant is not available, look for other assigned assistants
+            other_assignments = self.db.query(ClientAssistantAssignment).filter(
+                ClientAssistantAssignment.client_id == task.client_id,
+                ClientAssistantAssignment.status == AssignmentStatus.active,
+                ClientAssistantAssignment.is_primary.is_(False)
             ).all()
             
-            for assignment in assignments:
+            for assignment in other_assignments:
                 assistant = assignment.assistant
                 
-                # Check if assistant is available (not overloaded)
-                if assistant.current_active_tasks >= 5:
-                    continue
-                
-                # Check task type compatibility
-                allowed_types = []
-                if assignment.allowed_task_types:
-                    try:
-                        allowed_types = json.loads(assignment.allowed_task_types)
-                    except:
-                        allowed_types = []
-                
-                # If no specific types set, use assistant specialization
-                if not allowed_types:
-                    if assistant.specialization.value == "personal_only":
-                        allowed_types = ["personal"]
-                    elif assistant.specialization.value == "business_only":
-                        allowed_types = ["business"]
-                    else:  # full_access
-                        allowed_types = ["personal", "business"]
-                
-                # Check if task type is allowed
-                if task.type.value in allowed_types:
-                    logger.info(f"Found assigned assistant {assistant.id} for client {task.client_id}, task type {task.type.value}")
+                if self._is_assistant_compatible(assignment, assistant, task):
+                    logger.info(f"Found SECONDARY assigned assistant {assistant.id} for client {task.client_id}, task type {task.type.value}")
                     return assistant
             
             logger.info(f"No assigned assistant found for client {task.client_id}, task type {task.type.value}")
@@ -57,6 +58,32 @@ class TaskAssignmentService:
         except Exception as e:
             logger.error(f"Error finding assigned assistant: {str(e)}")
             return None
+    
+    def _is_assistant_compatible(self, assignment, assistant, task):
+        """Check if assistant is available and compatible with task type"""
+        # Check if assistant is available (not overloaded)
+        if assistant.current_active_tasks >= 5:
+            return False
+        
+        # Check task type compatibility
+        allowed_types = []
+        if assignment.allowed_task_types:
+            try:
+                allowed_types = json.loads(assignment.allowed_task_types)
+            except:
+                allowed_types = []
+        
+        # If no specific types set, use assistant specialization
+        if not allowed_types:
+            if assistant.specialization.value == "personal_only":
+                allowed_types = ["personal"]
+            elif assistant.specialization.value == "business_only":
+                allowed_types = ["business"]
+            else:  # full_access
+                allowed_types = ["personal", "business"]
+        
+        # Check if task type is allowed
+        return task.type.value in allowed_types
     
     def find_best_assistant(self, task):
         """Find the best available assistant for a task"""
