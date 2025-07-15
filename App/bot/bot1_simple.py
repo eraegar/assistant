@@ -2,6 +2,8 @@ import os
 import traceback
 import html
 import json
+import uuid
+import requests
 import telegram
 from telegram.ext import (
     Application,
@@ -12,6 +14,7 @@ from telegram.ext import (
     ContextTypes
 )
 from dotenv import load_dotenv
+from typing import Optional, Dict, Any
 
 # Загружаем .env из папки Backend, где он создается при деплое
 backend_dotenv_path = os.path.join(os.path.dirname(__file__), '..', 'Backend', '.env')
@@ -21,6 +24,7 @@ else:
     load_dotenv() # Fallback to root .env
 
 TOKEN = os.getenv("BOT_TOKEN")
+BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8000")
 
 # URL-адреса для ссылок
 PLANS_URL = "https://t.me/assist_for_rent_bot/plans"
@@ -28,11 +32,57 @@ MANAGER_URL = "https://t.me/assist_for_rent_bot/manager"
 ASSISTANT_URL = "https://t.me/assist_for_rent_bot/assistant"
 CLIENT_WEBAPP_URL = os.getenv("CLIENT_WEBAPP_URL", "https://rent-assistant.ru")
 
+def get_session_id(user_id: str) -> str:
+    """Get or create session ID for user"""
+    # For simplicity, we'll use a combination of user_id and hour
+    # In production, you might want to store this in Redis or similar
+    import datetime
+    hour = datetime.datetime.now().hour
+    return f"{user_id}_{hour}"
+
+async def track_interaction(user: telegram.User, action: str, action_data: Optional[Dict[str, Any]] = None, conversion_stage: Optional[str] = None):
+    """Track user interaction for analytics"""
+    try:
+        if not user:
+            return
+            
+        user_info = {
+            'username': user.username,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'language_code': getattr(user, 'language_code', None)
+        }
+        
+        session_id = get_session_id(str(user.id))
+        
+        tracking_data = {
+            'telegram_user_id': str(user.id),
+            'action': action,
+            'action_data': action_data or {},
+            'user_info': user_info,
+            'session_id': session_id,
+            'conversion_stage': conversion_stage
+        }
+        
+        # Send to backend analytics endpoint
+        # For now, we'll just print it. In production, you'd send to your backend
+        print(f"📊 Analytics: {action} by user {user.first_name} ({user.id})")
+        
+        # Uncomment for real tracking:
+        # requests.post(f"{BACKEND_URL}/api/v1/management/analytics/telegram/track", 
+        #               json=tracking_data, timeout=5)
+        
+    except Exception as e:
+        print(f"❌ Analytics tracking error: {e}")
+
 async def start(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE):
     """Отправляет приветственное сообщение с основным меню."""
     user = update.effective_user
     if not user:
         return
+    
+    # Track start interaction
+    await track_interaction(user, 'start', conversion_stage='started_bot')
         
     welcome_text = (
         f"👋 Здравствуйте, {user.first_name}!\n\n"
@@ -58,12 +108,21 @@ async def handle_keywords(update: telegram.Update, context: ContextTypes.DEFAULT
     if not update.message or not update.message.text:
         return
         
+    user = update.effective_user
     user_message = update.message.text.lower()
 
+    # Track keyword interactions
+    if user:
+        await track_interaction(user, 'keyword_search', {'keyword': user_message})
+
     if 'менеджер' in user_message:
+        if user:
+            await track_interaction(user, 'request_manager_app')
         await update.message.reply_text(f"Ссылка на приложение для менеджеров:\n{MANAGER_URL}")
 
     elif 'ассистент' in user_message:
+        if user:
+            await track_interaction(user, 'request_assistant_app')
         await update.message.reply_text(f"Ссылка на приложение для ассистентов:\n{ASSISTANT_URL}")
 
 
@@ -79,6 +138,7 @@ async def handle_callback(update: telegram.Update, context: ContextTypes.DEFAULT
         return
 
     if query.data == 'pricing':
+        await track_interaction(user, 'view_pricing', {'source': 'bot_menu'}, 'viewed_pricing')
         await query.edit_message_text(
             text=f"Вы можете ознакомиться с тарифами по ссылке:\n{PLANS_URL}",
             reply_markup=telegram.InlineKeyboardMarkup([
@@ -87,6 +147,7 @@ async def handle_callback(update: telegram.Update, context: ContextTypes.DEFAULT
         )
 
     elif query.data == 'task_examples':
+        await track_interaction(user, 'view_examples', {'source': 'bot_menu'}, 'viewed_examples')
         examples_text = (
             "💡 <b>Чем может помочь ассистент?</b>\n\n"
             "Практически всем! Вот несколько популярных примеров:\n\n"
@@ -103,15 +164,14 @@ async def handle_callback(update: telegram.Update, context: ContextTypes.DEFAULT
             "Готовы попробовать? Нажмите на кнопку «Открыть Приложение» прямо сейчас!"
         )
         keyboard = [
-            # Временно убираем кнопку, вызывающую ошибку
-            # [telegram.InlineKeyboardButton("🚀 Создать задачу в приложении", web_app=telegram.WebAppInfo(url=CLIENT_WEBAPP_URL))]
+            [telegram.InlineKeyboardButton("🚀 Открыть приложение", url=CLIENT_WEBAPP_URL)],
             [telegram.InlineKeyboardButton("🔙 Назад", callback_data='back_to_main')]
         ]
         markup = telegram.InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(examples_text, reply_markup=markup, parse_mode=telegram.constants.ParseMode.HTML)
 
-
     elif query.data == 'documents':
+        await track_interaction(user, 'view_documents', {'source': 'bot_menu'})
         documents_text = (
             "📄 <b>Безопасность ваших данных</b>\n\n"
             "Ваши данные в полной безопасности. Мы строго соблюдаем законодательство (ФЗ-152) и используем шифрование для защиты информации.\n\n"
@@ -126,6 +186,7 @@ async def handle_callback(update: telegram.Update, context: ContextTypes.DEFAULT
         await query.edit_message_text(documents_text, reply_markup=markup, parse_mode=telegram.constants.ParseMode.HTML)
 
     elif query.data == 'support':
+        await track_interaction(user, 'contact_support', {'source': 'bot_menu'})
         support_text = (
             "📞 <b>Служба поддержки</b>\n\n"
             "Возникли вопросы? Наша команда на связи и готова помочь!\n\n"
@@ -143,6 +204,7 @@ async def handle_callback(update: telegram.Update, context: ContextTypes.DEFAULT
         await query.edit_message_text(support_text, reply_markup=markup, parse_mode=telegram.constants.ParseMode.HTML)
 
     elif query.data == 'back_to_main':
+        await track_interaction(user, 'back_to_main')
         welcome_text = (
             f"👋 Здравствуйте, {user.first_name}!\n\n"
             "Я ваш личный консьерж-бот сервиса «Ассистент в аренду».\n\n"

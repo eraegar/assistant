@@ -208,72 +208,148 @@ def get_allowed_task_types(current_client: models.User = Depends(get_current_cli
 
 @router.get("/subscription/plans")
 async def get_subscription_plans():
-    """Get available subscription plans"""
-    print("📋 Subscription plans request")
+    """Get available subscription plans with simplified structure"""
+    print("📋 Subscription plans request - new simplified structure")
     
-    plans = [
+    # New simplified plan structure
+    simplified_plans = [
         {
             "id": "personal",
             "name": "Личный ассистент",
-            "description": "Для личных задач и домашних дел",
-            "subtitle": "Помощь в организации повседневной жизни",
-            "price": 15000,  # 15,000 рублей
-            "price_formatted": "15 000 ₽/месяц",
-            "hours_per_day": 5,
-            "features": [
-                "Личные задачи любой сложности",
-                "Помощь в организации быта",
-                "Поиск услуг и товаров",
-                "Планирование мероприятий",
-                "Бронирование и заказы",
-                "Поддержка 24/7"
-            ],
+            "subtitle": "Для личных задач и домашних дел",
+            "description": "Помощь с повседневными задачами, планированием и организацией личного времени",
+            "price_range": "15 000 - 50 000 ₽",
+            "price_from": 15000,
+            "price_to": 50000,
+            "hours_range": "2-8 часов в день",
             "task_types": ["personal"],
-            "popular": False
+            "features": [
+                "Личные задачи и поручения",
+                "Планирование мероприятий", 
+                "Бронирование и покупки",
+                "Поиск информации",
+                "Организация документов",
+                "Поддержка 24/7",
+                "Выбор объема: 2, 5 или 8 часов в день"
+            ],
+            "detailed_plans": [
+                {
+                    "id": "personal_2h",
+                    "name": "Личный 2ч",
+                    "price": 15000,
+                    "hours": 2,
+                    "price_formatted": "15 000 ₽/месяц"
+                },
+                {
+                    "id": "personal_5h", 
+                    "name": "Личный 5ч",
+                    "price": 30000,
+                    "hours": 5,
+                    "price_formatted": "30 000 ₽/месяц"
+                },
+                {
+                    "id": "personal_8h",
+                    "name": "Личный 8ч", 
+                    "price": 50000,
+                    "hours": 8,
+                    "price_formatted": "50 000 ₽/месяц"
+                }
+            ]
         },
         {
-            "id": "business", 
+            "id": "business",
             "name": "Бизнес ассистент",
-            "description": "Для профессиональных и рабочих задач",
-            "subtitle": "Идеально для бизнес-профессионалов и предпринимателей",
-            "price": 50000,  # 50,000 рублей
-            "price_formatted": "50 000 ₽/месяц",
-            "hours_per_day": 8,
-            "features": [
-                "Исследования рынка",
-                "Подготовка документов",
-                "Организация встреч",
-                "Поиск партнеров и клиентов",
-                "Административные задачи",
-                "Приоритетная поддержка"
-            ],
+            "subtitle": "Профессиональная поддержка бизнеса", 
+            "description": "Специализированная помощь в решении бизнес-задач и развитии компании",
+            "price_range": "30 000 - 80 000 ₽",
+            "price_from": 30000,
+            "price_to": 80000,
+            "hours_range": "2-8 часов в день",
             "task_types": ["business"],
-            "popular": True
+            "recommended": True,
+            "features": [
+                "Исследование рынка и конкурентов",
+                "Подготовка презентаций",
+                "Административные задачи", 
+                "Поиск партнеров и поставщиков",
+                "Ведение социальных сетей",
+                "Приоритетная поддержка",
+                "Выбор объема: 2, 5 или 8 часов в день"
+            ],
+            "detailed_plans": [
+                {
+                    "id": "business_2h",
+                    "name": "Бизнес 2ч",
+                    "price": 30000,
+                    "hours": 2,
+                    "price_formatted": "30 000 ₽/месяц"
+                },
+                {
+                    "id": "business_5h",
+                    "name": "Бизнес 5ч",
+                    "price": 60000,
+                    "hours": 5,
+                    "price_formatted": "60 000 ₽/месяц",
+                    "recommended": True
+                },
+                {
+                    "id": "business_8h",
+                    "name": "Бизнес 8ч",
+                    "price": 80000,
+                    "hours": 8,
+                    "price_formatted": "80 000 ₽/месяц"
+                }
+            ]
         },
         {
-            "id": "full",
+            "id": "combo",
             "name": "Личный + Бизнес",
-            "description": "Универсальный пакет для всех типов задач",
-            "subtitle": "Максимальная гибкость и возможности", 
-            "price": 80000,  # 80,000 рублей
-            "price_formatted": "80 000 ₽/месяц",
-            "hours_per_day": 10,
-            "features": [
-                "Все виды личных задач",
-                "Все виды бизнес-задач",
-                "Максимальная гибкость",
-                "Персональный менеджер",
-                "VIP поддержка 24/7",
-                "Расширенная аналитика"
-            ],
+            "subtitle": "Универсальное решение",
+            "description": "Полная поддержка как в личных вопросах, так и в бизнесе", 
+            "price_range": "40 000 - 100 000 ₽",
+            "price_from": 40000,
+            "price_to": 100000,
+            "hours_range": "2-8 часов в день",
             "task_types": ["personal", "business"],
-            "popular": False
-        }]
+            "features": [
+                "Все типы личных задач",
+                "Все типы бизнес-задач",
+                "Гибкое распределение времени",
+                "Приоритетный подбор ассистентов",
+                "VIP поддержка 24/7",
+                "Персональный менеджер",
+                "Выбор объема: 2, 5 или 8 часов в день"
+            ],
+            "detailed_plans": [
+                {
+                    "id": "full_2h",
+                    "name": "Комбо 2ч",
+                    "price": 40000,
+                    "hours": 2,
+                    "price_formatted": "40 000 ₽/месяц"
+                },
+                {
+                    "id": "full_5h",
+                    "name": "Комбо 5ч",
+                    "price": 80000,
+                    "hours": 5,
+                    "price_formatted": "80 000 ₽/месяц"
+                },
+                {
+                    "id": "full_8h",
+                    "name": "Комбо 8ч",
+                    "price": 100000,
+                    "hours": 8,
+                    "price_formatted": "100 000 ₽/месяц"
+                }
+            ]
+        }
+    ]
     
-    print(f"✅ Returning {len(plans)} subscription plans")
     return {
         "success": True,
-        "plans": plans
+        "plans": simplified_plans,
+        "message": "Simplified tariff structure with 3 main categories"
     }
 
 @router.post("/subscription/upgrade")
