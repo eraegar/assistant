@@ -17,6 +17,12 @@ import {
   Menu,
   MenuItem,
   styled,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Card,
+  Chip,
 } from '@mui/material';
 import {
   CheckCircle,
@@ -61,62 +67,77 @@ const PlanCard = styled(StatsCard)(({ theme }) => ({
 interface Plan {
   id: string;
   name: string;
-  price: number;
-  hoursPerDay: number;
+  priceRange: string; // Changed from single price to range
+  priceFrom: number;
+  priceTo: number;
+  hoursRange: string; // Shows range of hours
   description: string;
   features: string[];
   recommended?: boolean;
   taskTypes: string[];
+  subtitle?: string;
 }
 
 const plans: Plan[] = [
   {
     id: 'personal',
     name: 'Личный ассистент',
-    price: 15000,
-    hoursPerDay: 5,
-    description: 'Для личных задач и домашних дел',
+    priceRange: '15 000 - 50 000 ₽',
+    priceFrom: 15000,
+    priceTo: 50000,
+    hoursRange: '2-8 часов в день',
+    subtitle: 'Для личных задач и домашних дел',
+    description: 'Помощь с повседневными задачами, планированием и организацией личного времени',
     taskTypes: ['Личные'],
     features: [
-      'Личные задачи любой сложности',
-      'Помощь в организации быта',
-      'Поиск услуг и товаров',
+      'Личные задачи и поручения',
       'Планирование мероприятий',
-      'Бронирование и заказы',
+      'Бронирование и покупки',
+      'Поиск информации',
+      'Организация документов',
       'Поддержка 24/7',
+      'Выбор объема: 2, 5 или 8 часов в день',
     ],
   },
   {
     id: 'business',
     name: 'Бизнес ассистент',
-    price: 50000,
-    hoursPerDay: 8,
-    description: 'Для профессиональных и рабочих задач',
+    priceRange: '30 000 - 80 000 ₽',
+    priceFrom: 30000,
+    priceTo: 80000,
+    hoursRange: '2-8 часов в день',
+    subtitle: 'Профессиональная поддержка бизнеса',
+    description: 'Специализированная помощь в решении бизнес-задач и развитии компании',
     taskTypes: ['Бизнес'],
     recommended: true,
     features: [
-      'Исследования рынка',
-      'Подготовка документов',
-      'Организация встреч',
-      'Поиск партнеров и клиентов',
+      'Исследование рынка и конкурентов',
+      'Подготовка презентаций',
       'Административные задачи',
+      'Поиск партнеров и поставщиков',
+      'Ведение социальных сетей',
       'Приоритетная поддержка',
+      'Выбор объема: 2, 5 или 8 часов в день',
     ],
   },
   {
-    id: 'full',
+    id: 'combo',
     name: 'Личный + Бизнес',
-    price: 80000,
-    hoursPerDay: 10,
-    description: 'Универсальный пакет для всех типов задач',
+    priceRange: '40 000 - 100 000 ₽',
+    priceFrom: 40000,
+    priceTo: 100000,
+    hoursRange: '2-8 часов в день',
+    subtitle: 'Универсальное решение',
+    description: 'Полная поддержка как в личных вопросах, так и в бизнесе',
     taskTypes: ['Личные', 'Бизнес'],
     features: [
-      'Все виды личных задач',
-      'Все виды бизнес-задач',
-      'Максимальная гибкость',
-      'Персональный менеджер',
+      'Все типы личных задач',
+      'Все типы бизнес-задач',
+      'Гибкое распределение времени',
+      'Приоритетный подбор ассистентов',
       'VIP поддержка 24/7',
-      'Расширенная аналитика',
+      'Персональный менеджер',
+      'Выбор объема: 2, 5 или 8 часов в день',
     ],
   },
 ];
@@ -124,10 +145,18 @@ const plans: Plan[] = [
 const PlansScreen: React.FC = () => {
   const { user, logout } = useAuthStore();
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<Plan | null>(null);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
 
   const handleSelectPlan = (plan: Plan) => {
-    setSelectedPlan(plan);
+    setSelectedCategory(plan);
+    setShowDetailsModal(true);
+  };
+
+  const handlePlanDetailSelect = (detailPlan: any) => {
+    setSelectedPlan(detailPlan);
+    setShowDetailsModal(false);
   };
 
   const handleProceedToPayment = () => {
@@ -169,6 +198,33 @@ const PlansScreen: React.FC = () => {
         sx={{ mr: 1 }}
       />
     ));
+  };
+
+  const getDetailedPlans = (category: Plan) => {
+    const baseId = category.id;
+    const detailedPlans = [];
+    
+    if (baseId === 'personal') {
+      detailedPlans.push(
+        { id: 'personal_2h', name: 'Личный 2ч', price: 15000, hours: 2 },
+        { id: 'personal_5h', name: 'Личный 5ч', price: 30000, hours: 5 },
+        { id: 'personal_8h', name: 'Личный 8ч', price: 50000, hours: 8 }
+      );
+    } else if (baseId === 'business') {
+      detailedPlans.push(
+        { id: 'business_2h', name: 'Бизнес 2ч', price: 30000, hours: 2 },
+        { id: 'business_5h', name: 'Бизнес 5ч', price: 60000, hours: 5, recommended: true },
+        { id: 'business_8h', name: 'Бизнес 8ч', price: 80000, hours: 8 }
+      );
+    } else if (baseId === 'combo') {
+      detailedPlans.push(
+        { id: 'full_2h', name: 'Комбо 2ч', price: 40000, hours: 2 },
+        { id: 'full_5h', name: 'Комбо 5ч', price: 80000, hours: 5 },
+        { id: 'full_8h', name: 'Комбо 8ч', price: 100000, hours: 8 }
+      );
+    }
+    
+    return detailedPlans;
   };
 
   return (
@@ -251,10 +307,10 @@ const PlansScreen: React.FC = () => {
                   {/* Price */}
                   <Box sx={{ textAlign: 'center', mb: 3 }}>
                     <Typography variant="h4" fontWeight="bold" color="primary.main">
-                      {plan.price.toLocaleString('ru-RU')} ₽
+                      {plan.priceRange}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      в месяц • {plan.hoursPerDay}ч/день
+                      {plan.hoursRange}
                     </Typography>
                   </Box>
 
@@ -343,10 +399,10 @@ const PlansScreen: React.FC = () => {
                   {getTaskTypeChips(selectedPlan.taskTypes)}
                 </Box>
                 <Typography variant="h5" fontWeight="bold" color="primary.main">
-                  {selectedPlan.price.toLocaleString('ru-RU')} ₽/месяц
+                  {selectedPlan.priceRange}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  До {selectedPlan.hoursPerDay} часов работы в день
+                  {selectedPlan.hoursRange}
                 </Typography>
               </Grid>
               <Grid item xs={12} md={4} sx={{ textAlign: { xs: 'center', md: 'right' } }}>
@@ -451,6 +507,105 @@ const PlansScreen: React.FC = () => {
           </Grid>
         </EnhancedPaper>
       </Container>
+
+      {/* Plan Details Modal */}
+      <Dialog 
+        open={showDetailsModal} 
+        onClose={() => setShowDetailsModal(false)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 2,
+            background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
+          }
+        }}
+      >
+        <DialogTitle sx={{ textAlign: 'center', pb: 1 }}>
+          <Typography variant="h5" fontWeight="bold">
+            {selectedCategory?.name}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {selectedCategory?.subtitle}
+          </Typography>
+        </DialogTitle>
+        
+        <DialogContent sx={{ p: 3 }}>
+          <Typography variant="body1" sx={{ mb: 3, textAlign: 'center' }}>
+            {selectedCategory?.description}
+          </Typography>
+          
+          <Grid container spacing={2}>
+            {selectedCategory && getDetailedPlans(selectedCategory).map((plan) => (
+              <Grid item xs={12} md={4} key={plan.id}>
+                <Card 
+                  sx={{ 
+                    cursor: 'pointer',
+                    transition: 'all 0.3s ease',
+                    border: plan.recommended ? '2px solid' : '1px solid',
+                    borderColor: plan.recommended ? 'primary.main' : 'divider',
+                    '&:hover': {
+                      transform: 'translateY(-4px)',
+                      boxShadow: '0 8px 25px rgba(0,0,0,0.15)',
+                    }
+                  }}
+                  onClick={() => handlePlanDetailSelect(plan)}
+                >
+                  <CardContent sx={{ textAlign: 'center', p: 3 }}>
+                    {plan.recommended && (
+                      <Box sx={{ mb: 1 }}>
+                        <Chip 
+                          label="Популярный" 
+                          color="primary" 
+                          size="small"
+                          icon={<Star />}
+                        />
+                      </Box>
+                    )}
+                    
+                    <Typography variant="h6" fontWeight="bold" gutterBottom>
+                      {plan.name}
+                    </Typography>
+                    
+                    <Typography variant="h4" fontWeight="bold" color="primary.main" gutterBottom>
+                      {plan.price.toLocaleString('ru-RU')} ₽
+                    </Typography>
+                    
+                    <Typography variant="body2" color="text.secondary" gutterBottom>
+                      {plan.hours} часов в день
+                    </Typography>
+                    
+                    <Typography variant="body2" color="text.secondary">
+                      {(plan.price / plan.hours).toLocaleString('ru-RU')} ₽ за час
+                    </Typography>
+                    
+                    <Button
+                      variant="contained"
+                      fullWidth
+                      sx={{ mt: 2 }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handlePlanDetailSelect(plan);
+                      }}
+                    >
+                      Выбрать
+                    </Button>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+        </DialogContent>
+        
+        <DialogActions sx={{ p: 3, pt: 0 }}>
+          <Button 
+            onClick={() => setShowDetailsModal(false)}
+            color="inherit"
+          >
+            Назад
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

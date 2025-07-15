@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Enum, Boolean, Float
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Enum, Boolean, Float, UniqueConstraint
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -214,6 +214,7 @@ class ClientAssistantAssignment(Base):
     client_id = Column(Integer, ForeignKey("client_profiles.id"), nullable=False)
     assistant_id = Column(Integer, ForeignKey("assistant_profiles.id"), nullable=False)
     status = Column(Enum(AssignmentStatus), default=AssignmentStatus.active)
+    is_primary = Column(Boolean, default=False)  # Indicates if this is the main assistant for client communication
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     created_by = Column(Integer, ForeignKey("manager_profiles.id"), nullable=True)  # Manager who created the assignment
@@ -221,10 +222,150 @@ class ClientAssistantAssignment(Base):
     # Task type restrictions based on assistant specialization and client subscription
     allowed_task_types = Column(String, nullable=True)  # JSON string like '["personal"]' or '["personal", "business"]'
     
-    # Assignment type: main assistant is the primary contact, others are secondary
-    is_primary = Column(Boolean, default=False)  # True for main assistant, False for secondary
-    
     # Relationships
     client = relationship("ClientProfile", back_populates="assigned_assistants")
     assistant = relationship("AssistantProfile", back_populates="assigned_clients")
     created_by_manager = relationship("ManagerProfile")
+
+# Telegram Bot Analytics model
+class TelegramAnalytics(Base):
+    __tablename__ = "telegram_analytics"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    telegram_user_id = Column(String, nullable=False, index=True)  # Telegram user ID
+    username = Column(String, nullable=True)  # Telegram username
+    first_name = Column(String, nullable=True)
+    last_name = Column(String, nullable=True)
+    
+    # Interaction tracking
+    action = Column(String, nullable=False)  # 'start', 'view_pricing', 'view_examples', 'contact_support', etc.
+    action_data = Column(Text, nullable=True)  # JSON data with additional context
+    session_id = Column(String, nullable=True)  # Session identifier for grouping interactions
+    
+    # User state tracking  
+    is_registered_user = Column(Boolean, default=False)  # Whether user is registered in our system
+    user_role = Column(String, nullable=True)  # 'client', 'assistant', 'manager' if registered
+    subscription_plan = Column(String, nullable=True)  # Current subscription plan if client
+    
+    # Conversion funnel tracking
+    conversion_stage = Column(String, nullable=True)  # 'viewed_pricing', 'clicked_register', 'completed_registration', etc.
+    referrer = Column(String, nullable=True)  # How user found the bot
+    utm_source = Column(String, nullable=True)  # UTM tracking parameters
+    utm_campaign = Column(String, nullable=True)
+    
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    
+    # IP and device info (optional)
+    user_agent = Column(String, nullable=True)
+    language_code = Column(String, nullable=True)  # User's language preference
+
+# Manager Notification System models
+class NotificationType(enum.Enum):
+    POTENTIAL_CLIENT_ENGAGED = "potential_client_engaged"
+    PRICING_VIEWED_NO_REGISTRATION = "pricing_viewed_no_registration"
+    MULTIPLE_SESSIONS_NO_REGISTRATION = "multiple_sessions_no_registration"
+    HIGH_ENGAGEMENT_NO_CONVERSION = "high_engagement_no_conversion"
+    DAILY_SUMMARY = "daily_summary"
+    WEEKLY_SUMMARY = "weekly_summary"
+
+class NotificationChannel(enum.Enum):
+    EMAIL = "email"
+    TELEGRAM = "telegram"
+    IN_APP = "in_app"
+    SMS = "sms"
+
+class ManagerNotificationPreference(Base):
+    __tablename__ = "manager_notification_preferences"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    manager_id = Column(Integer, ForeignKey("manager_profiles.id"), nullable=False)
+    notification_type = Column(Enum(NotificationType), nullable=False)
+    channel = Column(Enum(NotificationChannel), nullable=False)
+    is_enabled = Column(Boolean, default=True)
+    
+    # Threshold settings for triggering notifications
+    threshold_settings = Column(Text, nullable=True)  # JSON with specific thresholds
+    
+    # Schedule settings for periodic notifications
+    schedule_hour = Column(Integer, nullable=True)  # Hour of day for daily/weekly summaries (0-23)
+    schedule_day_of_week = Column(Integer, nullable=True)  # Day of week for weekly (0=Monday, 6=Sunday)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    manager = relationship("ManagerProfile")
+    
+    # Unique constraint: one preference per manager/type/channel combination
+    __table_args__ = (
+        UniqueConstraint('manager_id', 'notification_type', 'channel', name='unique_manager_notification_preference'),
+    )
+
+class NotificationHistory(Base):
+    __tablename__ = "notification_history"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    manager_id = Column(Integer, ForeignKey("manager_profiles.id"), nullable=False)
+    notification_type = Column(Enum(NotificationType), nullable=False)
+    channel = Column(Enum(NotificationChannel), nullable=False)
+    
+    # Notification content
+    title = Column(String, nullable=False)
+    message = Column(Text, nullable=False)
+    
+    # Related data
+    related_telegram_user_id = Column(String, nullable=True)  # If related to specific user
+    related_data = Column(Text, nullable=True)  # JSON with additional context
+    
+    # Delivery tracking
+    sent_at = Column(DateTime, default=datetime.utcnow)
+    delivered_at = Column(DateTime, nullable=True)
+    read_at = Column(DateTime, nullable=True)
+    status = Column(String, default="sent")  # sent, delivered, read, failed
+    
+    # Delivery details
+    delivery_details = Column(Text, nullable=True)  # JSON with delivery info (email address, telegram chat_id, etc.)
+    
+    # Relationships
+    manager = relationship("ManagerProfile")
+
+class PotentialClientAlert(Base):
+    __tablename__ = "potential_client_alerts"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    telegram_user_id = Column(String, nullable=False, index=True)
+    username = Column(String, nullable=True)
+    first_name = Column(String, nullable=True)
+    last_name = Column(String, nullable=True)
+    
+    # Engagement metrics
+    total_interactions = Column(Integer, default=0)
+    first_interaction_at = Column(DateTime, nullable=False)
+    last_interaction_at = Column(DateTime, nullable=False)
+    total_sessions = Column(Integer, default=1)
+    
+    # Key actions performed
+    viewed_pricing = Column(Boolean, default=False)
+    viewed_examples = Column(Boolean, default=False)
+    contacted_support = Column(Boolean, default=False)
+    clicked_register = Column(Boolean, default=False)
+    
+    # Engagement score (calculated based on actions and frequency)
+    engagement_score = Column(Float, default=0.0)
+    
+    # Alert status
+    alert_sent = Column(Boolean, default=False)
+    alert_sent_at = Column(DateTime, nullable=True)
+    managers_notified = Column(Text, nullable=True)  # JSON list of manager IDs notified
+    
+    # Follow-up tracking
+    follow_up_required = Column(Boolean, default=False)
+    follow_up_notes = Column(Text, nullable=True)
+    assigned_manager_id = Column(Integer, ForeignKey("manager_profiles.id"), nullable=True)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    assigned_manager = relationship("ManagerProfile")

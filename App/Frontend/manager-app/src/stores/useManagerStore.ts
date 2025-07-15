@@ -18,7 +18,7 @@ interface ManagerStore {
 }
 
 // API base URL
-const API_BASE_URL = process.env.NODE_ENV === 'production' ? 'https://api.rent-assistant.ru' : 'http://localhost:8000';
+const API_BASE_URL = 'https://api.rent-assistant.ru';
 
 export const useManagerStore = create<ManagerStore>((set, get) => ({
       manager: null,
