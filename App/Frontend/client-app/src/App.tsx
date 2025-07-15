@@ -23,16 +23,22 @@ const AuthWrapper: React.FC = () => {
     // eslint-disable-next-line
   }, []);
 
+  console.log('🎯 AuthWrapper - Current userStatus:', userStatus);
+
   if (userStatus === UserStatus.UNAUTHENTICATED) {
+    console.log('🔐 Rendering WelcomeScreen (UNAUTHENTICATED)');
     return <WelcomeScreen />;
   }
   if (userStatus === UserStatus.NEEDS_SUBSCRIPTION) {
+    console.log('📋 Rendering PlansScreen (NEEDS_SUBSCRIPTION)');
     return <PlansScreen />;
   }
   if (userStatus === UserStatus.HAS_ACTIVE_SUBSCRIPTION) {
+    console.log('✅ Rendering DashboardScreen (HAS_ACTIVE_SUBSCRIPTION)');
     return <DashboardScreen />;
   }
   // fallback
+  console.log('🔄 Rendering WelcomeScreen (fallback)');
   return <WelcomeScreen />;
 };
 
