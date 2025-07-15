@@ -221,6 +221,9 @@ class ClientAssistantAssignment(Base):
     # Task type restrictions based on assistant specialization and client subscription
     allowed_task_types = Column(String, nullable=True)  # JSON string like '["personal"]' or '["personal", "business"]'
     
+    # Assignment type: main assistant is the primary contact, others are secondary
+    is_primary = Column(Boolean, default=False)  # True for main assistant, False for secondary
+    
     # Relationships
     client = relationship("ClientProfile", back_populates="assigned_assistants")
     assistant = relationship("AssistantProfile", back_populates="assigned_clients")
