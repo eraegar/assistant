@@ -564,6 +564,9 @@ const PlansScreen: React.FC = () => {
                       control={<Radio />}
                       label={
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+
+                          <Box sx={{ flex: 1, mr: 4 }}>
+                            <Typography variant="h6" fontWeight="bold" sx={{ mb: 0.5 }}>
                           <Box>
                             <Typography variant="h6" fontWeight="bold">
                               {option.hours} часов в день
@@ -572,6 +575,8 @@ const PlansScreen: React.FC = () => {
                               {option.description}
                             </Typography>
                           </Box>
+                          <Box sx={{ textAlign: 'right', minWidth: '140px' }}>
+                            <Typography variant="h5" fontWeight="bold" color="primary.main" sx={{ mb: 0.5 }}>
                           <Box sx={{ textAlign: 'right' }}>
                             <Typography variant="h5" fontWeight="bold" color="primary.main">
                               {option.price.toLocaleString('ru-RU')} ₽
