@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Container,
@@ -152,6 +153,7 @@ const plans: Plan[] = [
 
 const PlansScreen: React.FC = () => {
   const { user, logout } = useAuthStore();
+  const navigate = useNavigate();
   const [selectedPlan, setSelectedPlan] = useState<DetailedPlan | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<Plan | null>(null);
@@ -178,8 +180,8 @@ const PlansScreen: React.FC = () => {
   const handleProceedToPayment = () => {
     console.log('💳 Proceeding to payment, selectedPlan:', selectedPlan);
     if (selectedPlan) {
-      console.log('🚀 Redirecting to payment page with plan:', selectedPlan.id);
-      window.location.href = `/payment?plan=${selectedPlan.id}`;
+      console.log('🚀 Navigating to payment page with plan:', selectedPlan.id);
+      navigate(`/payment?plan=${selectedPlan.id}`);
     } else {
       console.log('❌ No plan selected for payment');
     }

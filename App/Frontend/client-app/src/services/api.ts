@@ -238,10 +238,10 @@ class ApiService {
         };
       } else {
         // Fallback for old structure
-        return {
-          success: true,
+      return {
+        success: true,
           data: data
-        };
+      };
       }
     } catch (error: any) {
       return {
