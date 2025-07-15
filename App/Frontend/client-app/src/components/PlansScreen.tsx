@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Container,
@@ -78,6 +78,14 @@ interface Plan {
   subtitle?: string;
 }
 
+interface DetailedPlan {
+  id: string;
+  name: string;
+  price: number;
+  hours: number;
+  recommended?: boolean;
+}
+
 const plans: Plan[] = [
   {
     id: 'personal',
@@ -144,24 +152,36 @@ const plans: Plan[] = [
 
 const PlansScreen: React.FC = () => {
   const { user, logout } = useAuthStore();
-  const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
+  const [selectedPlan, setSelectedPlan] = useState<DetailedPlan | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<Plan | null>(null);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
 
+  // Debug: Track selectedPlan changes
+  useEffect(() => {
+    console.log('🔄 selectedPlan changed:', selectedPlan);
+  }, [selectedPlan]);
+
   const handleSelectPlan = (plan: Plan) => {
+    console.log('📋 Plan selected:', plan);
     setSelectedCategory(plan);
     setShowDetailsModal(true);
   };
 
-  const handlePlanDetailSelect = (detailPlan: any) => {
+  const handlePlanDetailSelect = (detailPlan: DetailedPlan) => {
+    console.log('🎯 Plan detail selected:', detailPlan);
     setSelectedPlan(detailPlan);
     setShowDetailsModal(false);
+    console.log('📋 Modal closed, selectedPlan should be set');
   };
 
   const handleProceedToPayment = () => {
+    console.log('💳 Proceeding to payment, selectedPlan:', selectedPlan);
     if (selectedPlan) {
+      console.log('🚀 Redirecting to payment page with plan:', selectedPlan.id);
       window.location.href = `/payment?plan=${selectedPlan.id}`;
+    } else {
+      console.log('❌ No plan selected for payment');
     }
   };
 
@@ -200,9 +220,9 @@ const PlansScreen: React.FC = () => {
     ));
   };
 
-  const getDetailedPlans = (category: Plan) => {
+  const getDetailedPlans = (category: Plan): DetailedPlan[] => {
     const baseId = category.id;
-    const detailedPlans = [];
+    const detailedPlans: DetailedPlan[] = [];
     
     if (baseId === 'personal') {
       detailedPlans.push(
@@ -387,22 +407,20 @@ const PlansScreen: React.FC = () => {
         {/* Selected Plan Summary */}
         {selectedPlan && (
           <EnhancedPaper sx={{ p: 4, mb: 3 }}>
+            {console.log('🎯 Rendering selected plan summary for:', selectedPlan)}
             <Grid container spacing={3} alignItems="center">
               <Grid item xs={12} md={8}>
                 <Typography variant="h6" fontWeight="bold" gutterBottom>
                   Выбранный план: {selectedPlan.name}
                 </Typography>
                 <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
-                  {selectedPlan.description}
+                  {selectedPlan.hours} часов в день
                 </Typography>
-                <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-                  {getTaskTypeChips(selectedPlan.taskTypes)}
-                </Box>
                 <Typography variant="h5" fontWeight="bold" color="primary.main">
-                  {selectedPlan.priceRange}
+                  {selectedPlan.price.toLocaleString('ru-RU')} ₽/месяц
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  {selectedPlan.hoursRange}
+                  {(selectedPlan.price / selectedPlan.hours).toLocaleString('ru-RU')} ₽ за час
                 </Typography>
               </Grid>
               <Grid item xs={12} md={4} sx={{ textAlign: { xs: 'center', md: 'right' } }}>
