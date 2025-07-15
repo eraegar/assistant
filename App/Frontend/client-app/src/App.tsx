@@ -23,30 +23,17 @@ const AuthWrapper: React.FC = () => {
     // eslint-disable-next-line
   }, []);
 
-  console.log('🎯 AuthWrapper - Current userStatus:', userStatus);
-
   if (userStatus === UserStatus.UNAUTHENTICATED) {
-    console.log('🔐 Rendering WelcomeScreen (UNAUTHENTICATED)');
     return <WelcomeScreen />;
   }
   if (userStatus === UserStatus.NEEDS_SUBSCRIPTION) {
-    console.log('📋 Rendering PlansScreen (NEEDS_SUBSCRIPTION)');
     return <PlansScreen />;
   }
   if (userStatus === UserStatus.HAS_ACTIVE_SUBSCRIPTION) {
-    console.log('✅ Rendering DashboardScreen (HAS_ACTIVE_SUBSCRIPTION)');
     return <DashboardScreen />;
   }
-};
-
-const PaymentScreenFallback: React.FC = () => {
-  console.log('🔍 PaymentScreenFallback rendered');
-  return (
-    <div style={{ padding: '20px', textAlign: 'center' }}>
-      <h1>Payment Screen Loading...</h1>
-      <p>If you see this, the PaymentScreen component is not loading properly.</p>
-    </div>
-  );
+  // fallback
+  return <WelcomeScreen />;
 };
 
 const App: React.FC = () => (
@@ -56,8 +43,8 @@ const App: React.FC = () => (
       <Router>
         <Routes>
           <Route path="/login" element={<WelcomeScreen />} />
-          <Route path="/payment" element={<PaymentScreen />} />
           <Route path="/" element={<AuthWrapper />} />
+          <Route path="/payment" element={<PaymentScreen />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Router>

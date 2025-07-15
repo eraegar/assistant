@@ -16,7 +16,7 @@ class TaskAssignmentService:
             # Import models here to avoid circular imports
             from models import ClientAssistantAssignment, AssignmentStatus, AssistantProfile, TaskType
             
-            # Get all assigned assistants for this client
+            # Get active assignments for this client
             assignments = self.db.query(ClientAssistantAssignment).filter(
                 ClientAssistantAssignment.client_id == task.client_id,
                 ClientAssistantAssignment.status == AssignmentStatus.active
@@ -71,49 +71,6 @@ class TaskAssignmentService:
         logger.info(f"Task {task.id} has no assigned assistants, going to general marketplace")
         return False
     
-    def _is_assistant_compatible(self, assignment, assistant, task):
-        """Check if assistant is available and compatible with task type"""
-        # Check if assistant is available (not overloaded)
-        if assistant.current_active_tasks >= 5:
-            return False
-        
-        # Check task type compatibility
-        allowed_types = []
-        if assignment.allowed_task_types:
-            try:
-                allowed_types = json.loads(assignment.allowed_task_types)
-            except:
-                allowed_types = []
-        
-        # If no specific types set, use assistant specialization
-        if not allowed_types:
-            if assistant.specialization.value == "personal_only":
-                allowed_types = ["personal"]
-            elif assistant.specialization.value == "business_only":
-                allowed_types = ["business"]
-            else:  # full_access
-                allowed_types = ["personal", "business"]
-        
-        # Check if task type is allowed
-        return task.type.value in allowed_types
-    
-    def find_best_assistant(self, task):
-        """Find the best available assistant for a task"""
-        # First check for permanently assigned assistant
-        assigned_assistant = self.find_assigned_assistants(task)
-        if assigned_assistant:
-            return assigned_assistant
-        
-        if assigned_assistant:
-            logger.info(f"Task {task.id} is available to {len(assigned_assistant)} assigned assistants")
-            # Task stays in marketplace but is also visible to assigned assistants
-            # They can compete to claim it first
-            return True
-        
-        # If no assigned assistants, task goes to general marketplace
-        logger.info(f"Task {task.id} has no assigned assistants, going to general marketplace")
-        return False
-    
     def auto_assign_task(self, task) -> bool:
         """Try to make task available to assigned assistants (new multi-assistant system)"""
         try:
@@ -126,7 +83,7 @@ class TaskAssignmentService:
             # Task stays in pending status but is now available to assigned assistants
             # in addition to the general marketplace
             logger.info(f"Task {task.id} is now available in marketplace (assigned assistants: {has_assigned_assistants})")
-                return True
+            return True
             
         except Exception as e:
             logger.error(f"Error in auto_assign_task: {str(e)}")

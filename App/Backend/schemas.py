@@ -1,5 +1,5 @@
-from pydantic import BaseModel, EmailStr, Field, validator
-from typing import List, Optional
+from pydantic import BaseModel, EmailStr
+from typing import Optional, List
 from datetime import datetime
 from enum import Enum
 
@@ -50,24 +50,6 @@ class AssistantSpecialization(str, Enum):
 class AssistantStatus(str, Enum):
     online = "online"
     offline = "offline"
-
-# =============================================================================
-# CHARACTER LIMITS CONFIGURATION
-# =============================================================================
-
-# Task-related limits
-TASK_TITLE_MIN_LENGTH = 5
-TASK_TITLE_MAX_LENGTH = 200
-TASK_DESCRIPTION_MAX_LENGTH = 2000
-
-# Completion and feedback limits
-TASK_RESULT_MAX_LENGTH = 5000
-COMPLETION_NOTES_MAX_LENGTH = 1000
-REVISION_NOTES_MAX_LENGTH = 1000
-CLIENT_FEEDBACK_MAX_LENGTH = 1000
-
-# Message limits
-MESSAGE_CONTENT_MAX_LENGTH = 2000
 
 # =============================================================================
 # BASE USER SCHEMAS
@@ -218,61 +200,14 @@ class SubscriptionPlanInfo(BaseModel):
 # =============================================================================
 
 class TaskCreate(BaseModel):
-    title: str = Field(
-        min_length=TASK_TITLE_MIN_LENGTH,
-        max_length=TASK_TITLE_MAX_LENGTH,
-        description="Task title (5-200 characters)"
-    )
-    description: Optional[str] = Field(
-        None,
-        max_length=TASK_DESCRIPTION_MAX_LENGTH,
-        description="Task description (max 2000 characters)"
-    )
+    title: str
+    description: Optional[str] = None
     type: TaskType
 
-    @validator('title')
-    def validate_title(cls, v):
-        if not v or not v.strip():
-            raise ValueError('Title cannot be empty or whitespace only')
-        return v.strip()
-
-    @validator('description')
-    def validate_description(cls, v):
-        if v is not None:
-            v = v.strip()
-            if len(v) == 0:
-                return None  # Convert empty string to None
-        return v
-
 class TaskUpdate(BaseModel):
-    title: Optional[str] = Field(
-        None,
-        min_length=TASK_TITLE_MIN_LENGTH,
-        max_length=TASK_TITLE_MAX_LENGTH,
-        description="Task title (5-200 characters)"
-    )
-    description: Optional[str] = Field(
-        None,
-        max_length=TASK_DESCRIPTION_MAX_LENGTH,
-        description="Task description (max 2000 characters)"
-    )
+    title: Optional[str] = None
+    description: Optional[str] = None
     status: Optional[TaskStatus] = None
-
-    @validator('title')
-    def validate_title(cls, v):
-        if v is not None:
-            if not v.strip():
-                raise ValueError('Title cannot be empty or whitespace only')
-            return v.strip()
-        return v
-
-    @validator('description')
-    def validate_description(cls, v):
-        if v is not None:
-            v = v.strip()
-            if len(v) == 0:
-                return None
-        return v
 
 class TaskOut(BaseModel):
     id: int
@@ -322,82 +257,19 @@ class TaskMarketplace(BaseModel):
 
 # Task completion by assistant
 class TaskComplete(BaseModel):
-    completion_summary: str = Field(
-        min_length=10,
-        max_length=500,
-        description="Brief summary of what was completed (10-500 characters)"
-    )
-    detailed_result: str = Field(
-        min_length=20,
-        max_length=TASK_RESULT_MAX_LENGTH,
-        description="Detailed description of task result (20-5000 characters)"
-    )
-    recommendation: Optional[str] = Field(
-        None,
-        max_length=COMPLETION_NOTES_MAX_LENGTH,
-        description="Recommendations for client (max 1000 characters)"
-    )
-    next_steps_for_client: Optional[str] = Field(
-        None,
-        max_length=COMPLETION_NOTES_MAX_LENGTH,
-        description="Next steps for client (max 1000 characters)"
-    )
+    completion_summary: str
+    detailed_result: str
+    recommendation: Optional[str] = None
+    next_steps_for_client: Optional[str] = None
 
-    @validator('completion_summary', 'detailed_result')
-    def validate_required_fields(cls, v):
-        if not v or not v.strip():
-            raise ValueError('Field cannot be empty or whitespace only')
-        return v.strip()
-
-    @validator('recommendation', 'next_steps_for_client')
-    def validate_optional_fields(cls, v):
-        if v is not None:
-            v = v.strip()
-            if len(v) == 0:
-                return None
-        return v
-
-# Client task approval
+# Task approval/rejection by client
 class TaskApproval(BaseModel):
-    rating: int = Field(ge=1, le=5, description="Rating from 1 to 5 stars")
-    feedback: str = Field(
-        min_length=5,
-        max_length=CLIENT_FEEDBACK_MAX_LENGTH,
-        description="Feedback about task completion (5-1000 characters)"
-    )
+    rating: int  # 1-5 stars
+    feedback: str
 
-    @validator('feedback')
-    def validate_feedback(cls, v):
-        if not v or not v.strip():
-            raise ValueError('Feedback cannot be empty or whitespace only')
-        return v.strip()
-
-# Task revision request
 class TaskRevision(BaseModel):
-    feedback: str = Field(
-        min_length=10,
-        max_length=REVISION_NOTES_MAX_LENGTH,
-        description="Detailed feedback about what needs to be revised (10-1000 characters)"
-    )
-    additional_requirements: Optional[str] = Field(
-        None,
-        max_length=REVISION_NOTES_MAX_LENGTH,
-        description="Additional requirements for revision (max 1000 characters)"
-    )
-
-    @validator('feedback')
-    def validate_feedback(cls, v):
-        if not v or not v.strip():
-            raise ValueError('Revision feedback cannot be empty or whitespace only')
-        return v.strip()
-
-    @validator('additional_requirements')
-    def validate_additional_requirements(cls, v):
-        if v is not None:
-            v = v.strip()
-            if len(v) == 0:
-                return None
-        return v
+    feedback: str
+    additional_requirements: Optional[str] = None
 
 # Task rejection by assistant
 class TaskReject(BaseModel):
@@ -408,17 +280,7 @@ class TaskReject(BaseModel):
 # =============================================================================
 
 class MessageCreate(BaseModel):
-    content: str = Field(
-        min_length=1,
-        max_length=MESSAGE_CONTENT_MAX_LENGTH,
-        description="Message content (1-2000 characters)"
-    )
-
-    @validator('content')
-    def validate_content(cls, v):
-        if not v or not v.strip():
-            raise ValueError('Message content cannot be empty or whitespace only')
-        return v.strip()
+    content: str
 
 class MessageOut(BaseModel):
     id: int

@@ -185,7 +185,6 @@ interface Client {
     specialization: string;
     status: string;
     current_active_tasks: number;
-    is_primary: boolean;
     allowed_task_types: string[];
     assignment_id: number;
     assigned_at: string;
@@ -237,7 +236,6 @@ const Dashboard: React.FC = () => {
   const [assignClientDialogOpen, setAssignClientDialogOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [assignmentAssistant, setAssignmentAssistant] = useState<number | null>(null);
-  const [assignmentType, setAssignmentType] = useState<'primary' | 'additional'>('primary');
   
   // New state for assistant profile dialog
   const [assistantProfileDialogOpen, setAssistantProfileDialogOpen] = useState(false);
@@ -1081,21 +1079,15 @@ const Dashboard: React.FC = () => {
               <Box sx={{ mt: 2 }}>
                 {overviewData?.clients.subscription_distribution && Object.entries(overviewData.clients.subscription_distribution).map(([plan, count]) => {
                   const planNames: Record<string, { name: string; price: string }> = {
-                    // Original detailed plans
                     'personal_2h': { name: 'Личный 2ч', price: '15К ₽' },
                     'personal_5h': { name: 'Личный 5ч', price: '30К ₽' },
                     'personal_8h': { name: 'Личный 8ч', price: '50К ₽' },
                     'business_2h': { name: 'Бизнес 2ч', price: '30К ₽' },
                     'business_5h': { name: 'Бизнес 5ч', price: '60К ₽' },
                     'business_8h': { name: 'Бизнес 8ч', price: '80К ₽' },
-                    'full_2h': { name: 'Комбо 2ч', price: '40К ₽' },
-                    'full_5h': { name: 'Комбо 5ч', price: '80К ₽' },
-                    'full_8h': { name: 'Комбо 8ч', price: '100К ₽' },
-                    // New simplified categories
-                    'personal': { name: 'Личный ассистент', price: '15-50К ₽' },
-                    'business': { name: 'Бизнес ассистент', price: '30-80К ₽' },
-                    'combo': { name: 'Личный + Бизнес', price: '40-100К ₽' },
-                    'full': { name: 'Личный + Бизнес', price: '40-100К ₽' }
+                    'full_2h': { name: 'Полный 2ч', price: '40К ₽' },
+                    'full_5h': { name: 'Полный 5ч', price: '80К ₽' },
+                    'full_8h': { name: 'Полный 8ч', price: '100К ₽' }
                   };
                   const planInfo = planNames[plan] || { name: plan, price: '—' };
                   return (
@@ -1397,21 +1389,15 @@ const Dashboard: React.FC = () => {
 
   const getSubscriptionPlanName = (plan: string) => {
     const planNames: Record<string, string> = {
-      // Original detailed plans
       'personal_2h': 'Личный 2ч',
       'personal_5h': 'Личный 5ч', 
       'personal_8h': 'Личный 8ч',
       'business_2h': 'Бизнес 2ч',
       'business_5h': 'Бизнес 5ч',
       'business_8h': 'Бизнес 8ч',
-      'full_2h': 'Комбо 2ч',
-      'full_5h': 'Комбо 5ч',
-      'full_8h': 'Комбо 8ч',
-      // New simplified categories
-      'personal': 'Личный ассистент',
-      'business': 'Бизнес ассистент', 
-      'combo': 'Личный + Бизнес',
-      'full': 'Личный + Бизнес' // Alias for combo
+      'full_2h': 'Полный 2ч',
+      'full_5h': 'Полный 5ч',
+      'full_8h': 'Полный 8ч'
     };
     return planNames[plan] || plan;
   };
@@ -1474,24 +1460,18 @@ const Dashboard: React.FC = () => {
     if (!selectedClient || !assignmentAssistant) return;
     
     try {
-      const endpoint = assignmentType === 'primary' 
-        ? `/api/v1/management/clients/${selectedClient.id}/assign-primary-assistant`
-        : `/api/v1/management/clients/${selectedClient.id}/assign-additional-assistant`;
-        
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        method: 'POST',
+      const response = await fetch(`${API_BASE_URL}/api/v1/management/clients/${selectedClient.id}/assign-assistant`, {
+        method: 'PUT',
         headers: getAuthHeaders(),
         body: JSON.stringify({ assistant_id: assignmentAssistant })
       });
       
       if (response.ok) {
         const result = await response.json();
-        const assignmentTypeText = assignmentType === 'primary' ? 'главным ассистентом' : 'дополнительным ассистентом';
-        setError(`Клиент успешно закреплен за ${assignmentTypeText}! Назначено задач: ${result.assigned_tasks}`);
+        setError(`Клиент успешно закреплен за ассистентом! Назначено задач: ${result.assigned_tasks}`);
         setAssignClientDialogOpen(false);
         setSelectedClient(null);
         setAssignmentAssistant(null);
-        setAssignmentType('primary');
         await loadClients(); // Refresh clients
         await loadAssistants(); // Refresh assistants to update their task counts
         setTimeout(() => setError(null), 3000);
