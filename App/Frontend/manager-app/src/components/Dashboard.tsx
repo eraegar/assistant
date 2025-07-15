@@ -1324,7 +1324,7 @@ const Dashboard: React.FC = () => {
                             color="info"
                             onClick={() => openAssignClientDialog(client)}
                           >
-                            <SupervisorIcon />
+                            <AssignIcon />
                           </IconButton>
                         </Tooltip>
                         )}
@@ -1977,23 +1977,28 @@ const Dashboard: React.FC = () => {
                 Клиент: {selectedClient?.name}
               </Typography>
               
-              {/* Show current assignment warning */}
+              {/* Show current assignments */}
               {selectedClient?.assigned_assistants && selectedClient.assigned_assistants.length > 0 && (
-                <Alert severity="warning" sx={{ mt: 2, mb: 2 }}>
+                <Alert severity="info" sx={{ mt: 2, mb: 2 }}>
                   <Typography variant="body2">
-                    <strong>Внимание!</strong> У клиента уже есть назначенный ассистент: <strong>{selectedClient.assigned_assistants[0].name}</strong>
+                    <strong>Текущие назначения:</strong>
                     <br />
-                    Каждый клиент может иметь только одного ассистента. 
-                    Назначение нового ассистента заменит текущего.
+                    {selectedClient.assigned_assistants.map((assistant, index) => (
+                      <span key={assistant.id}>
+                        {assistant.name} ({assistant.specialization})
+                        {index < selectedClient.assigned_assistants!.length - 1 && ', '}
+                      </span>
+                    ))}
                   </Typography>
                 </Alert>
               )}
               
-              {/* Show restriction info */}
-              <Box sx={{ p: 2, bgcolor: 'info.50', borderRadius: 2, border: '1px solid', borderColor: 'info.200', mb: 2 }}>
-                <Typography variant="body2" color="info.main">
+              {/* Show multiple assignment info */}
+              <Box sx={{ p: 2, bgcolor: 'success.50', borderRadius: 2, border: '1px solid', borderColor: 'success.200', mb: 2 }}>
+                <Typography variant="body2" color="success.main">
                   <InfoIcon sx={{ mr: 1, fontSize: 16, verticalAlign: 'middle' }} />
-                  Ограничение: на одного клиента можно назначить максимум одного ассистента
+                  Система поддерживает назначение нескольких ассистентов на одного клиента. 
+                  Новые задачи будут доступны всем назначенным ассистентам.
                 </Typography>
               </Box>
               
@@ -2037,11 +2042,9 @@ const Dashboard: React.FC = () => {
             <Button 
               onClick={handleAssignClient}
               variant="contained"
-              color={selectedClient?.assigned_assistants && selectedClient.assigned_assistants.length > 0 ? "warning" : "primary"}
+              color="primary"
             >
-              {selectedClient?.assigned_assistants && selectedClient.assigned_assistants.length > 0 
-                ? "Заменить ассистента" 
-                : "Назначить ассистента"}
+              Назначить ассистента
             </Button>
           </DialogActions>
         </Dialog>

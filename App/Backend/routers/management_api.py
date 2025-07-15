@@ -699,14 +699,14 @@ async def reset_assistant_password(
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
-@router.put("/clients/{client_id}/assign-assistant")
-def assign_client_to_assistant(
+@router.post("/clients/{client_id}/assign-assistant")
+def assign_assistant_to_client(
     client_id: int,
     assignment_data: dict,
     current_manager: models.User = Depends(get_current_manager),
     db: Session = Depends(get_db)
 ):
-    """Create permanent assignment between client and assistant (manager only)"""
+    """Assign an assistant to a client (simplified system)"""
     import json
     
     # Find client
@@ -723,10 +723,6 @@ def assign_client_to_assistant(
     if not assistant:
         raise HTTPException(status_code=404, detail="Assistant not found")
     
-    # Check if assistant is available (not overloaded)
-    if assistant.current_active_tasks >= 5:
-        raise HTTPException(status_code=400, detail="Assistant is at maximum capacity (5 active tasks)")
-    
     # Check if this specific assistant is already assigned to this client
     existing_assignment = db.query(models.ClientAssistantAssignment).filter(
         models.ClientAssistantAssignment.client_id == client_id,
@@ -739,32 +735,6 @@ def assign_client_to_assistant(
             status_code=400, 
             detail=f"This assistant is already assigned to this client"
         )
-    
-    # Check if we're setting a primary assistant
-    is_primary = assignment_data.get("is_primary", False)
-    
-    # If setting as primary, deactivate other primary assignments for this client
-    if is_primary:
-        existing_primary = db.query(models.ClientAssistantAssignment).filter(
-            models.ClientAssistantAssignment.client_id == client_id,
-            models.ClientAssistantAssignment.is_primary == True,
-            models.ClientAssistantAssignment.status == models.AssignmentStatus.active
-        ).first()
-        
-        if existing_primary:
-            existing_primary.is_primary = False
-            print(f"🔄 Removed primary status from assistant {existing_primary.assistant_id}")
-    
-    # If no primary assistant exists and this is the first assignment, make it primary
-    primary_count = db.query(models.ClientAssistantAssignment).filter(
-        models.ClientAssistantAssignment.client_id == client_id,
-        models.ClientAssistantAssignment.is_primary == True,
-        models.ClientAssistantAssignment.status == models.AssignmentStatus.active
-    ).count()
-    
-    if primary_count == 0:
-        is_primary = True
-        print("📝 Setting as primary assistant since none exist")
     
     # Determine allowed task types based on assistant specialization and client subscription
     allowed_task_types = []
@@ -786,111 +756,32 @@ def assign_client_to_assistant(
             pass  # Keep original allowed_task_types
         # Full plans can use any task type the assistant supports
     
-    # Create permanent assignment
+    # Create assignment (no primary/secondary concept - all are equal)
     assignment = models.ClientAssistantAssignment(
         client_id=client_id,
         assistant_id=assistant_id,
         status=models.AssignmentStatus.active,
         created_by=current_manager.manager_profile.id,
         allowed_task_types=json.dumps(allowed_task_types),
-        is_primary=is_primary
+        is_primary=False  # No primary concept
     )
     
     db.add(assignment)
-    
-    # Now assign any pending compatible tasks to this assistant
-    pending_tasks = db.query(models.Task).filter(
-        models.Task.client_id == client_id,
-        models.Task.status == models.TaskStatus.pending,
-        models.Task.assistant_id.is_(None)
-    ).all()
-    
-    assigned_tasks = 0
-    for task in pending_tasks:
-        # Check if task type is allowed for this assignment
-        if task.type.value in allowed_task_types:
-            # Check if assistant still has capacity
-            if assistant.current_active_tasks >= 5:
-                break
-                
-            # Assign task
-            task.assistant_id = assistant.id
-            task.status = models.TaskStatus.in_progress
-            task.claimed_at = datetime.utcnow()
-            assigned_tasks += 1
-            
-            # Update assistant stats
-            assistant.current_active_tasks += 1
-    
     db.commit()
     
     return {
         "success": True, 
-        "message": f"Client permanently assigned to assistant {assistant.user.name}",
+        "message": f"Assistant {assistant.user.name} assigned to client {client.user.name}",
         "assignment_id": assignment.id,
-        "assigned_tasks": assigned_tasks,
         "allowed_task_types": allowed_task_types,
-        "is_primary": is_primary,
         "assistant": {
             "id": assistant.id,
             "name": assistant.user.name,
-            "specialization": assistant.specialization.value,
-            "current_active_tasks": assistant.current_active_tasks
+            "specialization": assistant.specialization.value
         }
     }
 
-@router.put("/clients/{client_id}/primary-assistant")
-def set_primary_assistant(
-    client_id: int,
-    assignment_data: dict,
-    current_manager: models.User = Depends(get_current_manager),
-    db: Session = Depends(get_db)
-):
-    """Set or change the primary assistant for a client"""
-    
-    # Find client
-    client = db.query(models.ClientProfile).filter(models.ClientProfile.id == client_id).first()
-    if not client:
-        raise HTTPException(status_code=404, detail="Client not found")
-    
-    assistant_id = assignment_data.get("assistant_id")
-    if not assistant_id:
-        raise HTTPException(status_code=400, detail="Assistant ID is required")
-    
-    # Check if this assistant is assigned to this client
-    target_assignment = db.query(models.ClientAssistantAssignment).filter(
-        models.ClientAssistantAssignment.client_id == client_id,
-        models.ClientAssistantAssignment.assistant_id == assistant_id,
-        models.ClientAssistantAssignment.status == models.AssignmentStatus.active
-    ).first()
-    
-    if not target_assignment:
-        raise HTTPException(
-            status_code=400, 
-            detail="This assistant is not assigned to this client"
-        )
-    
-    # Remove primary status from current primary assistant
-    current_primary = db.query(models.ClientAssistantAssignment).filter(
-        models.ClientAssistantAssignment.client_id == client_id,
-        models.ClientAssistantAssignment.is_primary == True,
-        models.ClientAssistantAssignment.status == models.AssignmentStatus.active
-    ).first()
-    
-    if current_primary and current_primary.id != target_assignment.id:
-        current_primary.is_primary = False
-        print(f"🔄 Removed primary status from assistant {current_primary.assistant_id}")
-    
-    # Set new primary assistant
-    target_assignment.is_primary = True
-    db.commit()
-    
-    return {
-        "success": True,
-        "message": f"Primary assistant updated for client {client.user.name}",
-        "primary_assistant_id": assistant_id,
-        "assignment_id": target_assignment.id
-    }
+
 
 @router.put("/clients/{client_id}/unassign-assistant/{assistant_id}")
 def unassign_assistant_from_client(

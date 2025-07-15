@@ -174,7 +174,9 @@ def get_marketplace_tasks(
     current_assistant: models.User = Depends(get_current_assistant),
     db: Session = Depends(get_db)
 ):
-    """Get available tasks in marketplace"""
+    """Get available tasks in marketplace (including tasks from assigned clients)"""
+    import json
+    
     query = db.query(models.Task).filter(
         models.Task.status == models.TaskStatus.pending,
         models.Task.assistant_id.is_(None)  # Unclaimed tasks
@@ -189,10 +191,52 @@ def get_marketplace_tasks(
     if task_type:
         query = query.filter(models.Task.type == task_type)
     
-    tasks = query.order_by(models.Task.created_at.asc()).offset(skip).limit(limit).all()
+    # Get all matching tasks
+    all_tasks = query.order_by(models.Task.created_at.asc()).all()
+    
+    # Get client IDs that this assistant is assigned to
+    assistant = current_assistant.assistant_profile
+    assigned_client_ids = db.query(models.ClientAssistantAssignment.client_id).filter(
+        models.ClientAssistantAssignment.assistant_id == assistant.id,
+        models.ClientAssistantAssignment.status == models.AssignmentStatus.active
+    ).all()
+    assigned_client_ids = [client_id[0] for client_id in assigned_client_ids]
+    
+    # Separate tasks: assigned client tasks first, then general marketplace
+    assigned_client_tasks = []
+    general_marketplace_tasks = []
+    
+    for task in all_tasks:
+        if task.client_id in assigned_client_ids:
+            # Verify task type compatibility for assigned clients
+            assignment = db.query(models.ClientAssistantAssignment).filter(
+                models.ClientAssistantAssignment.client_id == task.client_id,
+                models.ClientAssistantAssignment.assistant_id == assistant.id,
+                models.ClientAssistantAssignment.status == models.AssignmentStatus.active
+            ).first()
+            
+            if assignment:
+                allowed_types = []
+                if assignment.allowed_task_types:
+                    try:
+                        allowed_types = json.loads(assignment.allowed_task_types)
+                    except:
+                        allowed_types = []
+                
+                if task.type.value in allowed_types:
+                    assigned_client_tasks.append(task)
+                    continue
+        
+        general_marketplace_tasks.append(task)
+    
+    # Prioritize assigned client tasks
+    prioritized_tasks = assigned_client_tasks + general_marketplace_tasks
+    
+    # Apply pagination
+    paginated_tasks = prioritized_tasks[skip:skip + limit]
     
     marketplace_tasks = []
-    for task in tasks:
+    for task in paginated_tasks:
         # Calculate time remaining
         if task.deadline:
             time_remaining = task.deadline - datetime.utcnow()
@@ -205,12 +249,17 @@ def get_marketplace_tasks(
         else:
             time_remaining_str = "Без дедлайна"
         
+        # Mark assigned client tasks with a star
+        client_name = task.client.user.name.split()[0]
+        if task.client_id in assigned_client_ids:
+            client_name += " ⭐"
+        
         marketplace_tasks.append(schemas.TaskMarketplace(
             id=task.id,
             title=task.title,
             description=task.description,
             type=task.type,
-            client_name=task.client.user.name.split()[0],  # First name only
+            client_name=client_name,
             created_at=task.created_at,
             deadline=task.deadline,
             time_remaining=time_remaining_str
