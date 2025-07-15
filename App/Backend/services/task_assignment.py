@@ -126,7 +126,7 @@ class TaskAssignmentService:
             # Task stays in pending status but is now available to assigned assistants
             # in addition to the general marketplace
             logger.info(f"Task {task.id} is now available in marketplace (assigned assistants: {has_assigned_assistants})")
-            return True
+                return True
             
         except Exception as e:
             logger.error(f"Error in auto_assign_task: {str(e)}")

@@ -50,7 +50,11 @@ const App: React.FC = () => (
         <Routes>
           <Route path="/login" element={<WelcomeScreen />} />
           <Route path="/" element={<AuthWrapper />} />
-          <Route path="/payment" element={<PaymentScreen />} />
+          <Route path="/payment" element={
+            <React.Suspense fallback={<div>Loading payment screen...</div>}>
+              <PaymentScreen />
+            </React.Suspense>
+          } />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Router>

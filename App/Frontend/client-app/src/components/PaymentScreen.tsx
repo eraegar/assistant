@@ -243,6 +243,8 @@ const planDetails: Record<string, PlanDetails> = {
 const steps = ['Выбор плана', 'Платежные данные', 'Подтверждение'];
 
 const PaymentScreen: React.FC = () => {
+  console.log('🚀 PaymentScreen component rendering...');
+  
   const navigate = () => window.location.href = '/';
   const { user, activateSubscription } = useAuthStore();
   const [selectedPlan, setSelectedPlan] = useState<string>('personal_2h');
@@ -250,14 +252,31 @@ const PaymentScreen: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const planFromUrl = urlParams.get('plan');
-    if (planFromUrl && planDetails[planFromUrl]) {
-      setSelectedPlan(planFromUrl);
+    console.log('🔍 PaymentScreen useEffect - checking URL parameters...');
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const planFromUrl = urlParams.get('plan');
+      console.log('📋 Plan from URL:', planFromUrl);
+      
+      if (planFromUrl && planDetails[planFromUrl]) {
+        console.log('✅ Valid plan found, setting selectedPlan to:', planFromUrl);
+        setSelectedPlan(planFromUrl);
+      } else {
+        console.log('⚠️ Invalid or missing plan in URL, using default');
+        setError('Неверный план подписки');
+      }
+    } catch (err) {
+      console.error('❌ Error parsing URL parameters:', err);
+      setError('Ошибка загрузки параметров');
     }
   }, []);
+
+  console.log('👤 Current user:', user);
+  console.log('📋 Selected plan:', selectedPlan);
+  console.log('💳 Selected payment method:', selectedPaymentMethod);
 
   const currentPlan = planDetails[selectedPlan];
   const priceInRubles = currentPlan.price; // Цена уже в рублях
@@ -317,6 +336,15 @@ const PaymentScreen: React.FC = () => {
             Оплата подписки
           </Typography>
         </Box>
+
+        {/* Отображение ошибки */}
+        {error && (
+          <Alert severity="error" sx={{ mb: 3 }}>
+            <Typography variant="body1">
+              {error}
+            </Typography>
+          </Alert>
+        )}
 
         <Grid container spacing={4}>
           {/* Информация о заказе */}

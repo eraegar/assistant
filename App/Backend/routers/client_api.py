@@ -239,16 +239,16 @@ async def get_subscription_plans():
                     "price": 15000,
                     "hours": 2,
                     "price_formatted": "15 000 ₽/месяц"
-                },
-                {
-                    "id": "personal_5h", 
+        },
+        {
+            "id": "personal_5h", 
                     "name": "Личный 5ч",
                     "price": 30000,
                     "hours": 5,
                     "price_formatted": "30 000 ₽/месяц"
-                },
-                {
-                    "id": "personal_8h",
+        },
+        {
+            "id": "personal_8h",
                     "name": "Личный 8ч", 
                     "price": 50000,
                     "hours": 8,
@@ -283,17 +283,17 @@ async def get_subscription_plans():
                     "price": 30000,
                     "hours": 2,
                     "price_formatted": "30 000 ₽/месяц"
-                },
-                {
-                    "id": "business_5h",
+        },
+        {
+            "id": "business_5h",
                     "name": "Бизнес 5ч",
                     "price": 60000,
                     "hours": 5,
-                    "price_formatted": "60 000 ₽/месяц",
+            "price_formatted": "60 000 ₽/месяц",
                     "recommended": True
-                },
-                {
-                    "id": "business_8h",
+        },
+        {
+            "id": "business_8h",
                     "name": "Бизнес 8ч",
                     "price": 80000,
                     "hours": 8,
@@ -327,16 +327,16 @@ async def get_subscription_plans():
                     "price": 40000,
                     "hours": 2,
                     "price_formatted": "40 000 ₽/месяц"
-                },
-                {
-                    "id": "full_5h",
+        },
+        {
+            "id": "full_5h",
                     "name": "Комбо 5ч",
                     "price": 80000,
                     "hours": 5,
                     "price_formatted": "80 000 ₽/месяц"
-                },
-                {
-                    "id": "full_8h",
+        },
+        {
+            "id": "full_8h",
                     "name": "Комбо 8ч",
                     "price": 100000,
                     "hours": 8,

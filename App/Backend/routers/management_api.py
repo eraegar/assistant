@@ -1681,7 +1681,7 @@ def get_performance_analytics(
             "total_ratings": len(assistant_ratings),
             "tasks_with_ratings_percent": round((len(assistant_ratings) / completed_tasks * 100) if completed_tasks > 0 else 0, 1)
         }
-    }
+    } 
 
 # =============================================================================
 # TELEGRAM BOT ANALYTICS
@@ -1819,7 +1819,7 @@ def track_telegram_interaction(
             "tracked_at": record.created_at.isoformat()
         },
         "message": "Interaction tracked successfully"
-    }
+    } 
 
 # =============================================================================
 # CLIENT-ASSISTANT PERMANENT ASSIGNMENTS
@@ -2393,4 +2393,4 @@ def send_test_notification(
         "success": True,
         "message": f"Test notification sent via {channel.value}",
         "notification_id": test_notification.id
-    }
+    } 
