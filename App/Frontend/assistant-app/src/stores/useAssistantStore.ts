@@ -25,7 +25,7 @@ interface AssistantStore {
 }
 
 // API base URL
-const API_BASE_URL = 'https://api.rent-assistant.ru';
+const API_BASE_URL = process.env.NODE_ENV === 'production' ? 'https://api.rent-assistant.ru' : 'http://localhost:8000';
 
 export const useAssistantStore = create<AssistantStore>()(
   persist(

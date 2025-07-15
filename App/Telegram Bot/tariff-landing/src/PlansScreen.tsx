@@ -10,28 +10,18 @@ import {
   ListItem,
   ListItemIcon,
   ListItemText,
-  AppBar,
-  Toolbar,
-  IconButton,
-  Avatar,
-  Menu,
-  MenuItem,
   styled,
 } from '@mui/material';
 import {
   CheckCircle,
   Star,
-  AccountCircle,
-  ExitToApp,
   ArrowForward,
   Business,
   Person,
   AllInclusive,
 } from '@mui/icons-material';
-import { useAuthStore } from '../stores/useAuthStore';
-import { StatsCard, EnhancedPaper, GradientChip, clientGradients } from '../styles/gradients';
+import { StatsCard, EnhancedPaper, GradientChip, clientGradients } from './styles';
 
-// Enhanced styled components
 const PlanCard = styled(StatsCard)(({ theme }) => ({
   position: 'relative',
   height: '100%',
@@ -70,61 +60,59 @@ interface Plan {
 }
 
 const plans: Plan[] = [
-  {
-    id: 'personal',
-    name: 'Личный ассистент',
-    price: 15000,
-    hoursPerDay: 5,
-    description: 'Для личных задач и домашних дел',
-    taskTypes: ['Личные'],
-    features: [
-      'Личные задачи любой сложности',
-      'Помощь в организации быта',
-      'Поиск услуг и товаров',
-      'Планирование мероприятий',
-      'Бронирование и заказы',
-      'Поддержка 24/7',
-    ],
-  },
-  {
-    id: 'business',
-    name: 'Бизнес ассистент',
-    price: 50000,
-    hoursPerDay: 8,
-    description: 'Для профессиональных и рабочих задач',
-    taskTypes: ['Бизнес'],
-    recommended: true,
-    features: [
-      'Исследования рынка',
-      'Подготовка документов',
-      'Организация встреч',
-      'Поиск партнеров и клиентов',
-      'Административные задачи',
-      'Приоритетная поддержка',
-    ],
-  },
-  {
-    id: 'full',
-    name: 'Личный + Бизнес',
-    price: 80000,
-    hoursPerDay: 10,
-    description: 'Универсальный пакет для всех типов задач',
-    taskTypes: ['Личные', 'Бизнес'],
-    features: [
-      'Все виды личных задач',
-      'Все виды бизнес-задач',
-      'Максимальная гибкость',
-      'Персональный менеджер',
-      'VIP поддержка 24/7',
-      'Расширенная аналитика',
-    ],
-  },
-];
+    {
+      id: 'personal',
+      name: 'Личный ассистент',
+      price: 15000,
+      hoursPerDay: 5,
+      description: 'Для личных задач и домашних дел',
+      taskTypes: ['Личные'],
+      features: [
+        'Личные задачи любой сложности',
+        'Помощь в организации быта',
+        'Поиск услуг и товаров',
+        'Планирование мероприятий',
+        'Бронирование и заказы',
+        'Поддержка 24/7',
+      ],
+    },
+    {
+      id: 'business',
+      name: 'Бизнес ассистент',
+      price: 50000,
+      hoursPerDay: 8,
+      description: 'Для профессиональных и рабочих задач',
+      taskTypes: ['Бизнес'],
+      recommended: true,
+      features: [
+        'Исследования рынка',
+        'Подготовка документов',
+        'Организация встреч',
+        'Поиск партнеров и клиентов',
+        'Административные задачи',
+        'Приоритетная поддержка',
+      ],
+    },
+    {
+      id: 'full',
+      name: 'Личный + Бизнес',
+      price: 80000,
+      hoursPerDay: 10,
+      description: 'Универсальный пакет для всех типов задач',
+      taskTypes: ['Личные', 'Бизнес'],
+      features: [
+        'Все виды личных задач',
+        'Все виды бизнес-задач',
+        'Максимальная гибкость',
+        'Персональный менеджер',
+        'VIP поддержка 24/7',
+        'Расширенная аналитика',
+      ],
+    },
+  ];
 
 const PlansScreen: React.FC = () => {
-  const { user, logout } = useAuthStore();
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
 
   const handleSelectPlan = (plan: Plan) => {
     setSelectedPlan(plan);
@@ -132,21 +120,10 @@ const PlansScreen: React.FC = () => {
 
   const handleProceedToPayment = () => {
     if (selectedPlan) {
-      window.location.href = `/payment?plan=${selectedPlan.id}`;
+      // Здесь должна быть ссылка на ваше основное клиентское приложение
+      const clientAppUrl = 'https://your-client-app-url.com/payment'; // TODO: Заменить на реальный URL
+      window.location.href = `${clientAppUrl}?plan=${selectedPlan.id}`;
     }
-  };
-
-  const handleProfileMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleProfileMenuClose = () => {
-    setAnchorEl(null);
-  };
-
-  const handleLogout = () => {
-    logout();
-    handleProfileMenuClose();
   };
 
   const getPlanIcon = (taskTypes: string[]) => {
@@ -172,40 +149,7 @@ const PlansScreen: React.FC = () => {
   };
 
   return (
-    <Box sx={{ flexGrow: 1 }}>
-      {/* App Bar */}
-      <AppBar position="static" sx={{ background: clientGradients.header }}>
-        <Toolbar>
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1, color: 'white', fontWeight: 600 }}>
-            💎 Выберите тарифный план
-          </Typography>
-          
-          <IconButton
-            color="inherit"
-            onClick={handleProfileMenuOpen}
-          >
-            <Avatar sx={{ width: 32, height: 32 }}>
-              {user?.email?.charAt(0).toUpperCase()}
-            </Avatar>
-          </IconButton>
-          
-          <Menu
-            anchorEl={anchorEl}
-            open={Boolean(anchorEl)}
-            onClose={handleProfileMenuClose}
-          >
-            <MenuItem onClick={handleProfileMenuClose}>
-              <AccountCircle sx={{ mr: 1 }} />
-              Профиль
-            </MenuItem>
-            <MenuItem onClick={handleLogout}>
-              <ExitToApp sx={{ mr: 1 }} />
-              Выйти
-            </MenuItem>
-          </Menu>
-        </Toolbar>
-      </AppBar>
-
+    <Box sx={{ flexGrow: 1, bgcolor: 'background.default' }}>
       <Container maxWidth="lg" sx={{ py: 4 }}>
         {/* Header */}
         <Box sx={{ textAlign: 'center', mb: 5 }}>
@@ -221,13 +165,13 @@ const PlansScreen: React.FC = () => {
         </Box>
 
         {/* Plans Grid */}
-        <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid container spacing={4} sx={{ mb: 4 }}>
           {plans.map((plan) => (
-            <Grid item xs={12} sm={6} lg={3} key={plan.id}>
-              <PlanCard 
+            <Grid item xs={12} sm={6} md={4} key={plan.id}>
+              <PlanCard
                 className={plan.recommended ? 'recommended' : ''}
                 onClick={() => handleSelectPlan(plan)}
-                sx={{ 
+                sx={{
                   cursor: 'pointer',
                   border: selectedPlan?.id === plan.id ? '2px solid' : '1px solid',
                   borderColor: selectedPlan?.id === plan.id ? 'primary.main' : 'rgba(102, 126, 234, 0.1)',
@@ -265,9 +209,9 @@ const PlansScreen: React.FC = () => {
                         <ListItemIcon sx={{ minWidth: 32 }}>
                           <CheckCircle sx={{ fontSize: 16, color: 'success.main' }} />
                         </ListItemIcon>
-                        <ListItemText 
-                          primary={feature} 
-                          primaryTypographyProps={{ 
+                        <ListItemText
+                          primary={feature}
+                          primaryTypographyProps={{
                             variant: 'body2',
                             fontSize: '0.85rem'
                           }}
@@ -346,7 +290,7 @@ const PlansScreen: React.FC = () => {
                   {selectedPlan.price.toLocaleString('ru-RU')} ₽/месяц
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  До {selectedPlan.hoursPerDay} часов работы в день
+                  До {selectedPlan.hoursPerDay} часов в день
                 </Typography>
               </Grid>
               <Grid item xs={12} md={4} sx={{ textAlign: { xs: 'center', md: 'right' } }}>
