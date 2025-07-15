@@ -564,16 +564,16 @@ const PlansScreen: React.FC = () => {
                       control={<Radio />}
                       label={
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                          <Box>
-                            <Typography variant="h6" fontWeight="bold">
+                          <Box sx={{ flex: 1, mr: 4 }}>
+                            <Typography variant="h6" fontWeight="bold" sx={{ mb: 0.5 }}>
                               {option.hours} часов в день
                             </Typography>
                             <Typography variant="body2" color="text.secondary">
                               {option.description}
                             </Typography>
                           </Box>
-                          <Box sx={{ textAlign: 'right' }}>
-                            <Typography variant="h5" fontWeight="bold" color="primary.main">
+                          <Box sx={{ textAlign: 'right', minWidth: '140px' }}>
+                            <Typography variant="h5" fontWeight="bold" color="primary.main" sx={{ mb: 0.5 }}>
                               {option.price.toLocaleString('ru-RU')} ₽
                             </Typography>
                             <Typography variant="body2" color="text.secondary">
