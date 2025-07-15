@@ -1332,7 +1332,7 @@ const Dashboard: React.FC = () => {
                             color="info"
                             onClick={() => openAssignClientDialog(client)}
                           >
-                            <SupervisorIcon />
+                            <AssignIcon />
                           </IconButton>
                         </Tooltip>
                         )}
@@ -1997,61 +1997,28 @@ const Dashboard: React.FC = () => {
                 Клиент: {selectedClient?.name}
               </Typography>
               
-              {/* Assignment Type Selection */}
-              <FormControl fullWidth margin="normal">
-                <InputLabel>Тип назначения</InputLabel>
-                <Select
-                  value={assignmentType}
-                  onChange={(e) => setAssignmentType(e.target.value as 'primary' | 'additional')}
-                  label="Тип назначения"
-                >
-                  <MenuItem value="primary">
-                    <Box>
-                      <Typography variant="body2">Главный ассистент</Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        Основной контакт для клиента, утверждает выполнение задач
-                      </Typography>
-                    </Box>
-                  </MenuItem>
-                  <MenuItem value="additional">
-                    <Box>
-                      <Typography variant="body2">Дополнительный ассистент</Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        Выполняет задачи, но главный ассистент утверждает результат
-                      </Typography>
-                    </Box>
-                  </MenuItem>
-                </Select>
-              </FormControl>
-
               {/* Show current assignments */}
               {selectedClient?.assigned_assistants && selectedClient.assigned_assistants.length > 0 && (
-                <Box sx={{ mt: 2, mb: 2 }}>
-                  <Typography variant="subtitle2" gutterBottom>
-                    Текущие назначения:
+                <Alert severity="info" sx={{ mt: 2, mb: 2 }}>
+                  <Typography variant="body2">
+                    <strong>Текущие назначения:</strong>
+                    <br />
+                    {selectedClient.assigned_assistants.map((assistant, index) => (
+                      <span key={assistant.id}>
+                        {assistant.name} ({assistant.specialization})
+                        {index < selectedClient.assigned_assistants!.length - 1 && ', '}
+                      </span>
+                    ))}
                   </Typography>
-                  {selectedClient.assigned_assistants.map((assistant) => (
-                    <Box key={assistant.id} sx={{ p: 1, bgcolor: 'grey.100', borderRadius: 1, mb: 1 }}>
-                      <Typography variant="body2">
-                        <strong>{assistant.name}</strong> - {assistant.is_primary ? 'Главный ассистент' : 'Дополнительный ассистент'}
-                        <br />
-                        <Typography variant="caption" color="text.secondary">
-                          {assistant.specialization} • {assistant.current_active_tasks}/5 задач
-                        </Typography>
-                      </Typography>
-                    </Box>
-                  ))}
-                </Box>
+                </Alert>
               )}
               
-              {/* Show assignment rules */}
-              <Box sx={{ p: 2, bgcolor: 'info.50', borderRadius: 2, border: '1px solid', borderColor: 'info.200', mb: 2 }}>
-                <Typography variant="body2" color="info.main">
+              {/* Show multiple assignment info */}
+              <Box sx={{ p: 2, bgcolor: 'success.50', borderRadius: 2, border: '1px solid', borderColor: 'success.200', mb: 2 }}>
+                <Typography variant="body2" color="success.main">
                   <InfoIcon sx={{ mr: 1, fontSize: 16, verticalAlign: 'middle' }} />
-                  {assignmentType === 'primary' 
-                    ? 'У клиента может быть только один главный ассистент'
-                    : 'Можно назначить несколько дополнительных ассистентов'
-                  }
+                  Система поддерживает назначение нескольких ассистентов на одного клиента. 
+                  Новые задачи будут доступны всем назначенным ассистентам.
                 </Typography>
               </Box>
               
@@ -2095,11 +2062,9 @@ const Dashboard: React.FC = () => {
             <Button 
               onClick={handleAssignClient}
               variant="contained"
-              color={selectedClient?.assigned_assistants && selectedClient.assigned_assistants.length > 0 ? "warning" : "primary"}
+              color="primary"
             >
-              {selectedClient?.assigned_assistants && selectedClient.assigned_assistants.length > 0 
-                ? "Заменить ассистента" 
-                : "Назначить ассистента"}
+              Назначить ассистента
             </Button>
           </DialogActions>
         </Dialog>

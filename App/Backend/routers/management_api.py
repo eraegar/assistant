@@ -733,36 +733,14 @@ async def reset_assistant_password(
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
-@router.post("/clients/{client_id}/assign-primary-assistant")
-def assign_primary_assistant(
+@router.post("/clients/{client_id}/assign-assistant")
+def assign_assistant_to_client(
     client_id: int,
     assignment_data: dict,
     current_manager: models.User = Depends(get_current_manager),
     db: Session = Depends(get_db)
 ):
-    """Assign primary assistant to client (main contact person)"""
-    assignment_data["is_primary"] = True
-    return assign_client_to_assistant(client_id, assignment_data, current_manager, db)
-
-@router.post("/clients/{client_id}/assign-additional-assistant")
-def assign_additional_assistant(
-    client_id: int,
-    assignment_data: dict,
-    current_manager: models.User = Depends(get_current_manager),
-    db: Session = Depends(get_db)
-):
-    """Assign additional assistant to client (task execution only)"""
-    assignment_data["is_primary"] = False
-    return assign_client_to_assistant(client_id, assignment_data, current_manager, db)
-
-@router.put("/clients/{client_id}/assign-assistant")
-def assign_client_to_assistant(
-    client_id: int,
-    assignment_data: dict,
-    current_manager: models.User = Depends(get_current_manager),
-    db: Session = Depends(get_db)
-):
-    """Create permanent assignment between client and assistant (manager only)"""
+    """Assign an assistant to a client (simplified system)"""
     import json
     
     # Find client
@@ -779,11 +757,7 @@ def assign_client_to_assistant(
     if not assistant:
         raise HTTPException(status_code=404, detail="Assistant not found")
     
-    # Check if assistant is available (not overloaded)
-    if assistant.current_active_tasks >= 5:
-        raise HTTPException(status_code=400, detail="Assistant is at maximum capacity (5 active tasks)")
-    
-    # Check if this assistant is already assigned to this client
+    # Check if this specific assistant is already assigned to this client
     existing_assignment = db.query(models.ClientAssistantAssignment).filter(
         models.ClientAssistantAssignment.client_id == client_id,
         models.ClientAssistantAssignment.assistant_id == assistant_id,
@@ -795,24 +769,6 @@ def assign_client_to_assistant(
             status_code=400, 
             detail=f"Assistant '{assistant.user.name}' is already assigned to this client."
         )
-    
-    # Check if we're trying to assign a primary assistant when one already exists
-    is_primary = assignment_data.get("is_primary", False)
-    if is_primary:
-        existing_primary = db.query(models.ClientAssistantAssignment).filter(
-            models.ClientAssistantAssignment.client_id == client_id,
-            models.ClientAssistantAssignment.is_primary.is_(True),
-            models.ClientAssistantAssignment.status == models.AssignmentStatus.active
-        ).first()
-        
-        if existing_primary:
-            existing_primary_assistant = db.query(models.AssistantProfile).filter(
-                models.AssistantProfile.id == existing_primary.assistant_id
-            ).first()
-            raise HTTPException(
-                status_code=400, 
-                detail=f"Client already has a primary assistant: '{existing_primary_assistant.user.name}'. Each client can have only one primary assistant."
-            )
     
     # Determine allowed task types based on assistant specialization and client subscription
     allowed_task_types = []
@@ -834,56 +790,87 @@ def assign_client_to_assistant(
             pass  # Keep original allowed_task_types
         # Full plans can use any task type the assistant supports
     
-    # Create permanent assignment
+    # Create assignment (no primary/secondary concept - all are equal)
     assignment = models.ClientAssistantAssignment(
         client_id=client_id,
         assistant_id=assistant_id,
         status=models.AssignmentStatus.active,
-        is_primary=is_primary,
         created_by=current_manager.manager_profile.id,
-        allowed_task_types=json.dumps(allowed_task_types)
+        allowed_task_types=json.dumps(allowed_task_types),
+        is_primary=False  # No primary concept
     )
     
     db.add(assignment)
-    
-    # Now assign any pending compatible tasks to this assistant
-    pending_tasks = db.query(models.Task).filter(
-        models.Task.client_id == client_id,
-        models.Task.status == models.TaskStatus.pending,
-        models.Task.assistant_id.is_(None)
-    ).all()
-    
-    assigned_tasks = 0
-    for task in pending_tasks:
-        # Check if task type is allowed for this assignment
-        if task.type.value in allowed_task_types:
-            # Check if assistant still has capacity
-            if assistant.current_active_tasks >= 5:
-                break
-                
-            # Assign task
-            task.assistant_id = assistant.id
-            task.status = models.TaskStatus.in_progress
-            task.claimed_at = datetime.utcnow()
-            assigned_tasks += 1
-            
-            # Update assistant stats
-            assistant.current_active_tasks += 1
-    
     db.commit()
     
     return {
         "success": True, 
-        "message": f"Client permanently assigned to assistant {assistant.user.name}",
+        "message": f"Assistant {assistant.user.name} assigned to client {client.user.name}",
         "assignment_id": assignment.id,
-        "assigned_tasks": assigned_tasks,
         "allowed_task_types": allowed_task_types,
         "assistant": {
             "id": assistant.id,
             "name": assistant.user.name,
-            "specialization": assistant.specialization.value,
-            "current_active_tasks": assistant.current_active_tasks
+            "specialization": assistant.specialization.value
         }
+    }
+
+@router.put("/clients/{client_id}/unassign-assistant/{assistant_id}")
+def unassign_assistant_from_client(
+    client_id: int,
+    assistant_id: int,
+    current_manager: models.User = Depends(get_current_manager),
+    db: Session = Depends(get_db)
+):
+    """Remove assistant assignment from client"""
+    
+    # Find the assignment
+    assignment = db.query(models.ClientAssistantAssignment).filter(
+        models.ClientAssistantAssignment.client_id == client_id,
+        models.ClientAssistantAssignment.assistant_id == assistant_id,
+        models.ClientAssistantAssignment.status == models.AssignmentStatus.active
+    ).first()
+    
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+    
+    was_primary = assignment.is_primary
+    
+    # Deactivate assignment
+    assignment.status = models.AssignmentStatus.inactive
+    
+    # If this was the primary assistant, promote another assistant to primary
+    if was_primary:
+        other_assignment = db.query(models.ClientAssistantAssignment).filter(
+            models.ClientAssistantAssignment.client_id == client_id,
+            models.ClientAssistantAssignment.status == models.AssignmentStatus.active,
+            models.ClientAssistantAssignment.id != assignment.id
+        ).first()
+        
+        if other_assignment:
+            other_assignment.is_primary = True
+            print(f"🔄 Promoted assistant {other_assignment.assistant_id} to primary")
+    
+    # Move any active tasks from this assistant back to marketplace
+    active_tasks = db.query(models.Task).filter(
+        models.Task.client_id == client_id,
+        models.Task.assistant_id == assistant_id,
+        models.Task.status == models.TaskStatus.in_progress
+    ).all()
+    
+    for task in active_tasks:
+        task.assistant_id = None
+        task.status = models.TaskStatus.pending
+        task.claimed_at = None
+        print(f"📋 Moved task {task.id} back to marketplace")
+    
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": f"Assistant {assistant_id} unassigned from client {client_id}",
+        "was_primary": was_primary,
+        "moved_tasks": len(active_tasks)
     }
 
 @router.get("/assistants")
