@@ -19,8 +19,8 @@ def create_manager():
     
     db = database.SessionLocal()
     try:
-        manager_phone = "+79089050077"
-        manager_password = "admin32451124"
+        manager_phone = "+79999999999"
+        manager_password = "admin123"
         manager_email = "Malina2701@mail.ru"
         
         # Check if manager already exists
