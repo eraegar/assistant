@@ -37,9 +37,16 @@ const AuthWrapper: React.FC = () => {
     console.log('✅ Rendering DashboardScreen (HAS_ACTIVE_SUBSCRIPTION)');
     return <DashboardScreen />;
   }
-  // fallback
-  console.log('🔄 Rendering WelcomeScreen (fallback)');
-  return <WelcomeScreen />;
+};
+
+const PaymentScreenFallback: React.FC = () => {
+  console.log('🔍 PaymentScreenFallback rendered');
+  return (
+    <div style={{ padding: '20px', textAlign: 'center' }}>
+      <h1>Payment Screen Loading...</h1>
+      <p>If you see this, the PaymentScreen component is not loading properly.</p>
+    </div>
+  );
 };
 
 const App: React.FC = () => (
@@ -49,12 +56,8 @@ const App: React.FC = () => (
       <Router>
         <Routes>
           <Route path="/login" element={<WelcomeScreen />} />
+          <Route path="/payment" element={<PaymentScreen />} />
           <Route path="/" element={<AuthWrapper />} />
-          <Route path="/payment" element={
-            <React.Suspense fallback={<div>Loading payment screen...</div>}>
-              <PaymentScreen />
-            </React.Suspense>
-          } />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Router>

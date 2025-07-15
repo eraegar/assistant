@@ -4,9 +4,10 @@ import {
   Box,
   Container,
   Typography,
-  Button,
   Grid,
+  Card,
   CardContent,
+  Button,
   List,
   ListItem,
   ListItemIcon,
@@ -17,51 +18,75 @@ import {
   Avatar,
   Menu,
   MenuItem,
-  styled,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  Card,
   Chip,
+  Paper,
+  styled,
 } from '@mui/material';
 import {
   CheckCircle,
-  Star,
+  Person,
+  Business,
+  AllInclusive,
   AccountCircle,
   ExitToApp,
   ArrowForward,
-  Business,
-  Person,
-  AllInclusive,
+  Star,
 } from '@mui/icons-material';
 import { useAuthStore } from '../stores/useAuthStore';
-import { StatsCard, EnhancedPaper, GradientChip, clientGradients } from '../styles/gradients';
+import { clientGradients } from '../styles/gradients';
 
 // Enhanced styled components
-const PlanCard = styled(StatsCard)(({ theme }) => ({
-  position: 'relative',
+const PlanCard = styled(Card)(({ theme }) => ({
   height: '100%',
   display: 'flex',
   flexDirection: 'column',
+  transition: 'all 0.3s ease',
+  cursor: 'pointer',
+  '&:hover': {
+    transform: 'translateY(-4px)',
+    boxShadow: theme.shadows[8],
+  },
   '&.recommended': {
-    transform: 'scale(1.05)',
-    border: '2px solid',
-    borderColor: theme.palette.primary.main,
+    border: `2px solid ${theme.palette.primary.main}`,
+    position: 'relative',
     '&::before': {
-      content: '"Рекомендуем"',
+      content: '"Рекомендуется"',
       position: 'absolute',
-      top: -12,
+      top: -10,
       left: '50%',
       transform: 'translateX(-50%)',
-      background: clientGradients.primary,
+      background: theme.palette.primary.main,
       color: 'white',
-      padding: '4px 16px',
-      borderRadius: 12,
+      padding: '4px 12px',
+      borderRadius: '12px',
       fontSize: '0.75rem',
-      fontWeight: 600,
-      zIndex: 1,
+      fontWeight: 'bold',
     },
+  },
+}));
+
+const EnhancedPaper = styled(Paper)(({ theme }) => ({
+  background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${theme.palette.grey[50]} 100%)`,
+  border: `1px solid ${theme.palette.divider}`,
+  borderRadius: theme.shape.borderRadius * 2,
+  padding: theme.spacing(3),
+  transition: 'all 0.3s ease',
+  '&:hover': {
+    transform: 'translateY(-2px)',
+    boxShadow: theme.shadows[4],
+  },
+}));
+
+const GradientChip = styled(Chip)(({ theme }) => ({
+  background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+  color: 'white',
+  fontWeight: 'bold',
+  '&:hover': {
+    background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
   },
 }));
 
@@ -152,11 +177,11 @@ const plans: Plan[] = [
 ];
 
 const PlansScreen: React.FC = () => {
-  const { user, logout } = useAuthStore();
   const navigate = useNavigate();
+  const { user, logout } = useAuthStore();
+  const [selectedCategory, setSelectedCategory] = useState<Plan | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<DetailedPlan | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<Plan | null>(null);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
 
   // Debug: Track selectedPlan changes
@@ -409,7 +434,6 @@ const PlansScreen: React.FC = () => {
         {/* Selected Plan Summary */}
         {selectedPlan && (
           <EnhancedPaper sx={{ p: 4, mb: 3 }}>
-            {console.log('🎯 Rendering selected plan summary for:', selectedPlan)}
             <Grid container spacing={3} alignItems="center">
               <Grid item xs={12} md={8}>
                 <Typography variant="h6" fontWeight="bold" gutterBottom>
