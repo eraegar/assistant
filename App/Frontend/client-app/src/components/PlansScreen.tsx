@@ -17,6 +17,14 @@ import {
   Menu,
   MenuItem,
   styled,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  RadioGroup,
+  FormControlLabel,
+  Radio,
+  Chip,
 } from '@mui/material';
 import {
   CheckCircle,
@@ -27,6 +35,7 @@ import {
   Business,
   Person,
   AllInclusive,
+  AccessTime,
 } from '@mui/icons-material';
 import { useAuthStore } from '../stores/useAuthStore';
 import { StatsCard, EnhancedPaper, GradientChip, clientGradients } from '../styles/gradients';
@@ -67,6 +76,12 @@ interface Plan {
   features: string[];
   recommended?: boolean;
   taskTypes: string[];
+}
+
+interface HourOption {
+  hours: number;
+  price: number;
+  description: string;
 }
 
 const plans: Plan[] = [
@@ -121,18 +136,66 @@ const plans: Plan[] = [
   },
 ];
 
+// Варианты часов для каждого типа плана
+const hourOptions: Record<string, HourOption[]> = {
+  personal: [
+    { hours: 2, price: 15000, description: '2 часа в день' },
+    { hours: 5, price: 30000, description: '5 часов в день' },
+    { hours: 8, price: 50000, description: '8 часов в день' },
+  ],
+  business: [
+    { hours: 2, price: 30000, description: '2 часа в день' },
+    { hours: 5, price: 60000, description: '5 часов в день' },
+    { hours: 8, price: 80000, description: '8 часов в день' },
+  ],
+  full: [
+    { hours: 2, price: 40000, description: '2 часа в день' },
+    { hours: 5, price: 80000, description: '5 часов в день' },
+    { hours: 8, price: 100000, description: '8 часов в день' },
+  ],
+};
+
 const PlansScreen: React.FC = () => {
   const { user, logout } = useAuthStore();
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
+  const [selectedHours, setSelectedHours] = useState<number>(5);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [hourSelectionOpen, setHourSelectionOpen] = useState(false);
+  const [currentPlanForHours, setCurrentPlanForHours] = useState<Plan | null>(null);
 
   const handleSelectPlan = (plan: Plan) => {
-    setSelectedPlan(plan);
+    setCurrentPlanForHours(plan);
+    setHourSelectionOpen(true);
+  };
+
+  const handleHourSelection = (hours: number) => {
+    setSelectedHours(hours);
+  };
+
+  const handleConfirmHourSelection = () => {
+    if (currentPlanForHours) {
+      // Обновляем план с выбранными часами
+      const updatedPlan = {
+        ...currentPlanForHours,
+        hoursPerDay: selectedHours,
+        price: hourOptions[currentPlanForHours.id].find(option => option.hours === selectedHours)?.price || currentPlanForHours.price
+      };
+      setSelectedPlan(updatedPlan);
+      setHourSelectionOpen(false);
+      setCurrentPlanForHours(null);
+    }
+  };
+
+  const handleCloseHourSelection = () => {
+    setHourSelectionOpen(false);
+    setCurrentPlanForHours(null);
   };
 
   const handleProceedToPayment = () => {
     if (selectedPlan) {
-      window.location.href = `/payment?plan=${selectedPlan.id}`;
+      const planId = selectedPlan.id;
+      const hours = selectedPlan.hoursPerDay;
+      window.location.href = `/payment?plan=${planId}&hours=${hours}`;
     }
   };
 
@@ -251,10 +314,10 @@ const PlansScreen: React.FC = () => {
                   {/* Price */}
                   <Box sx={{ textAlign: 'center', mb: 3 }}>
                     <Typography variant="h4" fontWeight="bold" color="primary.main">
-                      {plan.price.toLocaleString('ru-RU')} ₽
+                      от {plan.price.toLocaleString('ru-RU')} ₽
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      в месяц • {plan.hoursPerDay}ч/день
+                      в месяц • от {plan.hoursPerDay}ч/день
                     </Typography>
                   </Box>
 
@@ -346,7 +409,7 @@ const PlansScreen: React.FC = () => {
                   {selectedPlan.price.toLocaleString('ru-RU')} ₽/месяц
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  До {selectedPlan.hoursPerDay} часов работы в день
+                  {selectedPlan.hoursPerDay} часов работы в день
                 </Typography>
               </Grid>
               <Grid item xs={12} md={4} sx={{ textAlign: { xs: 'center', md: 'right' } }}>
@@ -451,6 +514,105 @@ const PlansScreen: React.FC = () => {
           </Grid>
         </EnhancedPaper>
       </Container>
+
+      {/* Hour Selection Dialog */}
+      <Dialog 
+        open={hourSelectionOpen} 
+        onClose={handleCloseHourSelection}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ textAlign: 'center', pb: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2 }}>
+            <AccessTime sx={{ fontSize: 40, color: 'primary.main', mr: 2 }} />
+            <Typography variant="h5" fontWeight="bold">
+              Выберите количество часов
+            </Typography>
+          </Box>
+          {currentPlanForHours && (
+            <Typography variant="body1" color="text.secondary" sx={{ textAlign: 'center' }}>
+              {currentPlanForHours.name}
+            </Typography>
+          )}
+        </DialogTitle>
+        <DialogContent>
+          {currentPlanForHours && (
+            <Box sx={{ mt: 2 }}>
+              <RadioGroup
+                value={selectedHours}
+                onChange={(e) => handleHourSelection(Number(e.target.value))}
+              >
+                {hourOptions[currentPlanForHours.id].map((option) => (
+                  <Box
+                    key={option.hours}
+                    sx={{
+                      border: selectedHours === option.hours ? '2px solid' : '1px solid',
+                      borderColor: selectedHours === option.hours ? 'primary.main' : 'divider',
+                      borderRadius: 2,
+                      p: 2,
+                      mb: 2,
+                      backgroundColor: selectedHours === option.hours ? 'primary.50' : 'background.paper',
+                      transition: 'all 0.2s ease',
+                      '&:hover': {
+                        borderColor: 'primary.main',
+                        backgroundColor: 'primary.50',
+                      }
+                    }}
+                  >
+                    <FormControlLabel
+                      value={option.hours}
+                      control={<Radio />}
+                      label={
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                          <Box>
+                            <Typography variant="h6" fontWeight="bold">
+                              {option.hours} часов в день
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              {option.description}
+                            </Typography>
+                          </Box>
+                          <Box sx={{ textAlign: 'right' }}>
+                            <Typography variant="h5" fontWeight="bold" color="primary.main">
+                              {option.price.toLocaleString('ru-RU')} ₽
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              в месяц
+                            </Typography>
+                          </Box>
+                        </Box>
+                      }
+                      sx={{ width: '100%', m: 0 }}
+                    />
+                  </Box>
+                ))}
+              </RadioGroup>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 3, pt: 1 }}>
+          <Button 
+            onClick={handleCloseHourSelection}
+            variant="outlined"
+            size="large"
+          >
+            Отмена
+          </Button>
+          <Button
+            onClick={handleConfirmHourSelection}
+            variant="contained"
+            size="large"
+            sx={{
+              background: clientGradients.primary,
+              '&:hover': {
+                background: clientGradients.primary,
+              }
+            }}
+          >
+            Подтвердить выбор
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
