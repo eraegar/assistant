@@ -28,16 +28,11 @@ export const useAuthStore = create<AuthStore>()(
 
       determineUserStatus: () => {
         const { user } = get();
-        console.log('🔍 Determining user status:', { user });
-        
         if (!user) {
-          console.log('❌ No user found, setting UNAUTHENTICATED');
           set({ userStatus: UserStatus.UNAUTHENTICATED });
         } else if (user.subscription?.status === 'active') {
-          console.log('✅ User has active subscription, setting HAS_ACTIVE_SUBSCRIPTION');
           set({ userStatus: UserStatus.HAS_ACTIVE_SUBSCRIPTION });
         } else {
-          console.log('📋 User needs subscription, setting NEEDS_SUBSCRIPTION');
           set({ userStatus: UserStatus.NEEDS_SUBSCRIPTION });
         }
       },
@@ -65,28 +60,22 @@ export const useAuthStore = create<AuthStore>()(
       },
 
       register: async (name: string, phone: string, password: string, telegram_username?: string): Promise<boolean> => {
-        console.log('🚀 Starting registration process...');
         set({ isLoading: true });
         try {
           const response = await apiService.register(name, phone, password, telegram_username);
-          console.log('📡 Registration API response:', response);
-          
           if (response.success && response.data) {
-            console.log('✅ Registration successful, setting user data...');
             set({ 
               user: response.data.user,
               token: response.data.token,
               isLoading: false
             });
-            console.log('🔄 Determining user status after registration...');
             get().determineUserStatus();
             return true;
           }
-          console.log('❌ Registration failed:', response.message);
           set({ isLoading: false });
           return false;
         } catch (error) {
-          console.error('❌ Register error:', error);
+          console.error('Register error:', error);
           set({ isLoading: false });
           return false;
         }

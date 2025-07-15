@@ -3,7 +3,7 @@ import { User, Task, TaskType, TaskStatus, TaskApproval, TaskRevision, ApiRespon
 
 class ApiService {
   private api: AxiosInstance;
-  private baseURL = process.env.NODE_ENV === 'production' ? 'https://api.rent-assistant.ru/api/v1' : 'http://127.0.0.1:8000/api/v1';
+  private baseURL = process.env.NODE_ENV === 'production' ? 'https://api.rent-assistant.ru/api/v1' : 'http://localhost:8000/api/v1';
 
   constructor() {
     this.api = axios.create({
@@ -28,7 +28,7 @@ class ApiService {
       (error) => {
         if (error.response?.status === 401) {
           this.removeAuthToken();
-          window.location.href = '/login';
+          window.location.href = '/';
         }
         return Promise.reject(error);
       }
@@ -228,21 +228,10 @@ class ApiService {
   async getSubscriptionPlans(): Promise<ApiResponse<any[]>> {
     try {
       const response = await this.api.get('/clients/subscription/plans');
-      
-      // Handle both old and new plan structure
-      const data = response.data;
-      if (data.plans) {
-        return {
-          success: true,
-          data: data.plans
-        };
-      } else {
-        // Fallback for old structure
       return {
         success: true,
-          data: data
+        data: response.data
       };
-      }
     } catch (error: any) {
       return {
         success: false,
