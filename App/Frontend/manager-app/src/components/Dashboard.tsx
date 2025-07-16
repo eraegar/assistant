@@ -1307,17 +1307,6 @@ const Dashboard: React.FC = () => {
                             <InfoIcon />
                           </IconButton>
                         </Tooltip>
-                        {client.assigned_assistants && client.assigned_assistants.length > 0 ? (
-                          <Tooltip title="Отменить назначение ассистента">
-                            <IconButton
-                              size="small"
-                              color="warning"
-                              onClick={() => handleUnassignClient(client)}
-                            >
-                              <UnassignIcon />
-                            </IconButton>
-                          </Tooltip>
-                        ) : (
                         <Tooltip title="Назначить ассистента">
                           <IconButton
                             size="small"
@@ -1327,6 +1316,16 @@ const Dashboard: React.FC = () => {
                             <AssignIcon />
                           </IconButton>
                         </Tooltip>
+                        {client.assigned_assistants && client.assigned_assistants.length > 0 && (
+                          <Tooltip title="Отменить назначение ассистента">
+                            <IconButton
+                              size="small"
+                              color="warning"
+                              onClick={() => handleUnassignClient(client)}
+                            >
+                              <UnassignIcon />
+                            </IconButton>
+                          </Tooltip>
                         )}
                         <Tooltip title="Управление подпиской">
                           <IconButton
@@ -1461,7 +1460,7 @@ const Dashboard: React.FC = () => {
     
     try {
       const response = await fetch(`${API_BASE_URL}/api/v1/management/clients/${selectedClient.id}/assign-assistant`, {
-        method: 'PUT',
+        method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({ assistant_id: assignmentAssistant })
       });
@@ -1509,6 +1508,36 @@ const Dashboard: React.FC = () => {
         setError(`Назначение ассистента отменено! ${result.message}`);
         await loadClients(); // Refresh clients
         await loadAssistants(); // Refresh assistants to update their task counts
+        setTimeout(() => setError(null), 3000);
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Ошибка отмены назначения');
+      }
+    } catch (error) {
+      console.error('Ошибка отмены назначения:', error);
+      setError(error instanceof Error ? error.message : 'Ошибка отмены назначения');
+    }
+  };
+
+  const handleUnassignSpecificAssistant = async (client: Client, assignmentId: number) => {
+    try {
+      const confirmUnassign = window.confirm(
+        `Вы уверены, что хотите отменить это назначение ассистента для клиента "${client.name}"?`
+      );
+      
+      if (!confirmUnassign) return;
+      
+      const response = await fetch(`${API_BASE_URL}/api/v1/management/assignments/${assignmentId}/deactivate`, {
+        method: 'PUT',
+        headers: getAuthHeaders()
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        setError(`Назначение ассистента отменено! ${result.message}`);
+        await loadClients(); // Refresh clients
+        await loadAssistants(); // Refresh assistants to update their task counts
+        setAssignClientDialogOpen(false); // Close the dialog
         setTimeout(() => setError(null), 3000);
       } else {
         const errorData = await response.json();
@@ -1977,20 +2006,48 @@ const Dashboard: React.FC = () => {
                 Клиент: {selectedClient?.name}
               </Typography>
               
-              {/* Show current assignments */}
+              {/* Show current assignments with unassign buttons */}
               {selectedClient?.assigned_assistants && selectedClient.assigned_assistants.length > 0 && (
-                <Alert severity="info" sx={{ mt: 2, mb: 2 }}>
-                  <Typography variant="body2">
-                    <strong>Текущие назначения:</strong>
-                    <br />
-                    {selectedClient.assigned_assistants.map((assistant, index) => (
-                      <span key={assistant.id}>
-                        {assistant.name} ({assistant.specialization})
-                        {index < selectedClient.assigned_assistants!.length - 1 && ', '}
-                      </span>
-                    ))}
+                <Box sx={{ mt: 2, mb: 2 }}>
+                  <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
+                    Текущие назначения:
                   </Typography>
-                </Alert>
+                  {selectedClient.assigned_assistants.map((assistant) => (
+                    <Box 
+                      key={assistant.id} 
+                      sx={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center',
+                        p: 2,
+                        mb: 1,
+                        bgcolor: 'grey.50',
+                        borderRadius: 1,
+                        border: '1px solid',
+                        borderColor: 'grey.200'
+                      }}
+                    >
+                      <Box>
+                        <Typography variant="body2" fontWeight={500}>
+                          {assistant.name}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {getStatusText(assistant.specialization)} • 
+                          {assistant.current_active_tasks}/5 задач
+                        </Typography>
+                      </Box>
+                      <Button
+                        size="small"
+                        color="error"
+                        variant="outlined"
+                        onClick={() => handleUnassignSpecificAssistant(selectedClient, assistant.assignment_id)}
+                        sx={{ minWidth: 'auto', px: 1 }}
+                      >
+                        Отменить
+                      </Button>
+                    </Box>
+                  ))}
+                </Box>
               )}
               
               {/* Show multiple assignment info */}
