@@ -782,6 +782,88 @@ def assign_assistant_to_client(
     }
 
 
+@router.put("/clients/{client_id}/assign-assistant")
+def assign_assistant_to_client_put(
+    client_id: int,
+    assignment_data: dict,
+    current_manager: models.User = Depends(get_current_manager),
+    db: Session = Depends(get_db)
+):
+    """Assign an assistant to a client using PUT method (alternative to POST)"""
+    import json
+    
+    # Find client
+    client = db.query(models.ClientProfile).filter(models.ClientProfile.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+    
+    assistant_id = assignment_data.get("assistant_id")
+    if not assistant_id:
+        raise HTTPException(status_code=400, detail="Assistant ID is required")
+    
+    # Find assistant
+    assistant = db.query(models.AssistantProfile).filter(models.AssistantProfile.id == assistant_id).first()
+    if not assistant:
+        raise HTTPException(status_code=404, detail="Assistant not found")
+    
+    # Check if this specific assistant is already assigned to this client
+    existing_assignment = db.query(models.ClientAssistantAssignment).filter(
+        models.ClientAssistantAssignment.client_id == client_id,
+        models.ClientAssistantAssignment.assistant_id == assistant_id,
+        models.ClientAssistantAssignment.status == models.AssignmentStatus.active
+    ).first()
+    
+    if existing_assignment:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"This assistant is already assigned to this client"
+        )
+    
+    # Determine allowed task types based on assistant specialization and client subscription
+    allowed_task_types = []
+    if assistant.specialization == models.AssistantSpecialization.personal_only:
+        allowed_task_types = ["personal"]
+    elif assistant.specialization == models.AssistantSpecialization.business_only:
+        allowed_task_types = ["business"]
+    else:  # full_access
+        allowed_task_types = ["personal", "business"]
+    
+    # Further restrict based on client subscription if needed
+    if client.subscription:
+        if client.subscription.plan.value.startswith("personal_"):
+            # Personal plans can only use personal tasks
+            if "business" in allowed_task_types:
+                allowed_task_types = ["personal"]
+        elif client.subscription.plan.value.startswith("business_"):
+            # Business plans can use business tasks, but check assistant capability
+            pass  # Keep original allowed_task_types
+        # Full plans can use any task type the assistant supports
+    
+    # Create assignment (no primary/secondary concept - all are equal)
+    assignment = models.ClientAssistantAssignment(
+        client_id=client_id,
+        assistant_id=assistant_id,
+        status=models.AssignmentStatus.active,
+        created_by=current_manager.manager_profile.id,
+        allowed_task_types=json.dumps(allowed_task_types),
+        is_primary=False  # No primary concept
+    )
+    
+    db.add(assignment)
+    db.commit()
+    
+    return {
+        "success": True, 
+        "message": f"Assistant {assistant.user.name} assigned to client {client.user.name}",
+        "assignment_id": assignment.id,
+        "allowed_task_types": allowed_task_types,
+        "assistant": {
+            "id": assistant.id,
+            "name": assistant.user.name,
+            "specialization": assistant.specialization.value
+        }
+    }
+
 
 @router.put("/clients/{client_id}/unassign-assistant/{assistant_id}")
 def unassign_assistant_from_client(
