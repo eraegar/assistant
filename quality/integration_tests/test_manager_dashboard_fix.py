@@ -75,7 +75,7 @@ def test_create_assistant(token):
         "email": "test.assistant.dashboard@example.com",
         "password": "testpass123",
         "specialization": "full_access",
-        "telegram_username": "test_assistant_dash"
+        "telegram_username": "@test_assistant_dash"
     }
     
     response = requests.post(f"{API_BASE}/api/v1/management/assistants/create", 

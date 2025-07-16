@@ -249,6 +249,11 @@ const Dashboard: React.FC = () => {
   const [clientProfileDialogOpen, setClientProfileDialogOpen] = useState(false);
   const [selectedClientProfile, setSelectedClientProfile] = useState<Client | null>(null);
   
+  // New state for unassign assistant dialog
+  const [unassignDialogOpen, setUnassignDialogOpen] = useState(false);
+  const [selectedClientForUnassign, setSelectedClientForUnassign] = useState<Client | null>(null);
+  const [selectedAssistantToUnassign, setSelectedAssistantToUnassign] = useState<number | null>(null);
+  
   const { manager, logout } = useManagerStore();
 
   // Function to open assistant profile dialog
@@ -456,6 +461,16 @@ const Dashboard: React.FC = () => {
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+
+  const formatTelegramUsername = (username: string | null | undefined): string => {
+    if (!username) return '';
+    
+    // Убираем все @ в начале, если они есть
+    const cleanUsername = username.replace(/^@+/, '');
+    
+    // Возвращаем с одним @
+    return `@${cleanUsername}`;
   };
 
   const renderOverviewTab = () => {
@@ -1327,15 +1342,7 @@ const Dashboard: React.FC = () => {
                             </IconButton>
                           </Tooltip>
                         )}
-                        <Tooltip title="Управление подпиской">
-                          <IconButton
-                            size="small"
-                            color="secondary"
-                            onClick={() => openSubscriptionDialog(client)}
-                          >
-                            <BusinessIcon />
-                          </IconButton>
-                        </Tooltip>
+
                       </Box>
                     </TableCell>
                   </TableRow>
@@ -1485,20 +1492,61 @@ const Dashboard: React.FC = () => {
   };
 
   const handleUnassignClient = async (client: Client) => {
+    // Если у клиента только один назначенный ассистент, отменяем его сразу
+    if (client.assigned_assistants && client.assigned_assistants.length === 1) {
+      try {
+        const confirmUnassign = window.confirm(
+          `Вы уверены, что хотите отменить назначение ассистента "${client.assigned_assistants[0].name}" для клиента "${client.name}"? Все активные задачи вернутся в маркетплейс.`
+        );
+        
+        if (!confirmUnassign) return;
+        
+        const assignment = client.assigned_assistants[0];
+        const response = await fetch(`${API_BASE_URL}/api/v1/management/assignments/${assignment.assignment_id}/deactivate`, {
+          method: 'PUT',
+          headers: getAuthHeaders()
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          setError(`Назначение ассистента отменено! ${result.message}`);
+          await loadClients(); // Refresh clients
+          await loadAssistants(); // Refresh assistants to update their task counts
+          setTimeout(() => setError(null), 3000);
+        } else {
+          const errorData = await response.json();
+          throw new Error(errorData.detail || 'Ошибка отмены назначения');
+        }
+      } catch (error) {
+        console.error('Ошибка отмены назначения:', error);
+        setError(error instanceof Error ? error.message : 'Ошибка отмены назначения');
+      }
+    } else {
+      // Если несколько ассистентов, открываем диалог выбора
+      setSelectedClientForUnassign(client);
+      setUnassignDialogOpen(true);
+    }
+  };
+
+  const handleUnassignSelectedAssistant = async () => {
+    if (!selectedClientForUnassign || !selectedAssistantToUnassign) return;
+    
     try {
+      const assistant = selectedClientForUnassign.assigned_assistants?.find(
+        a => a.id === selectedAssistantToUnassign
+      );
+      
+      if (!assistant) {
+        throw new Error('Выбранный ассистент не найден');
+      }
+      
       const confirmUnassign = window.confirm(
-        `Вы уверены, что хотите отменить назначение ассистента для клиента "${client.name}"? Все активные задачи вернутся в маркетплейс.`
+        `Вы уверены, что хотите отменить назначение ассистента "${assistant.name}" для клиента "${selectedClientForUnassign.name}"? Все активные задачи вернутся в маркетплейс.`
       );
       
       if (!confirmUnassign) return;
       
-      // Get the assignment ID from the client's assigned assistants
-      const assignment = client.assigned_assistants?.[0];
-      if (!assignment) {
-        throw new Error('Не найдено назначение для отмены');
-      }
-      
-      const response = await fetch(`${API_BASE_URL}/api/v1/management/assignments/${assignment.assignment_id}/deactivate`, {
+      const response = await fetch(`${API_BASE_URL}/api/v1/management/assignments/${assistant.assignment_id}/deactivate`, {
         method: 'PUT',
         headers: getAuthHeaders()
       });
@@ -1506,6 +1554,9 @@ const Dashboard: React.FC = () => {
       if (response.ok) {
         const result = await response.json();
         setError(`Назначение ассистента отменено! ${result.message}`);
+        setUnassignDialogOpen(false);
+        setSelectedClientForUnassign(null);
+        setSelectedAssistantToUnassign(null);
         await loadClients(); // Refresh clients
         await loadAssistants(); // Refresh assistants to update their task counts
         setTimeout(() => setError(null), 3000);
@@ -1879,7 +1930,7 @@ const Dashboard: React.FC = () => {
                               Telegram
                             </Typography>
                             <Typography variant="body1" fontWeight={500}>
-                              {selectedAssistantProfile.telegram_username}
+                              {formatTelegramUsername(selectedAssistantProfile.telegram_username)}
                             </Typography>
                           </Box>
                         )}
@@ -2235,7 +2286,7 @@ const Dashboard: React.FC = () => {
                               Telegram алиас
                             </Typography>
                             <Typography variant="body1" fontWeight={500}>
-                              @{selectedClientProfile.telegram_username}
+                              {formatTelegramUsername(selectedClientProfile.telegram_username)}
                             </Typography>
                           </Box>
                         )}
@@ -2379,6 +2430,76 @@ const Dashboard: React.FC = () => {
           <DialogActions>
             <Button onClick={() => setClientProfileDialogOpen(false)}>
               Закрыть
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Unassign Assistant Dialog */}
+        <Dialog
+          open={unassignDialogOpen}
+          onClose={() => setUnassignDialogOpen(false)}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle>Отменить назначение ассистента</DialogTitle>
+          <DialogContent>
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Клиент: {selectedClientForUnassign?.name}
+              </Typography>
+              
+              <Typography variant="body2" color="text.secondary" gutterBottom sx={{ mb: 2 }}>
+                Выберите ассистента, назначение которого хотите отменить:
+              </Typography>
+              
+              <FormControl fullWidth margin="normal">
+                <InputLabel>Выбрать ассистента</InputLabel>
+                <Select
+                  value={selectedAssistantToUnassign || ''}
+                  onChange={(e) => setSelectedAssistantToUnassign(e.target.value as number)}
+                  label="Выбрать ассистента"
+                >
+                  <MenuItem value="">
+                    <em>Выберите ассистента</em>
+                  </MenuItem>
+                  {selectedClientForUnassign?.assigned_assistants?.map((assistant) => (
+                    <MenuItem 
+                      key={assistant.id} 
+                      value={assistant.id}
+                    >
+                      <Box>
+                        <Typography variant="body2">
+                          {assistant.name}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {getStatusText(assistant.specialization)} • 
+                          {assistant.current_active_tasks}/5 задач
+                        </Typography>
+                      </Box>
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              
+              <Alert severity="warning" sx={{ mt: 2 }}>
+                <Typography variant="body2">
+                  <WarningIcon sx={{ mr: 1, fontSize: 16, verticalAlign: 'middle' }} />
+                  При отмене назначения все активные задачи этого ассистента для данного клиента вернутся в маркетплейс.
+                </Typography>
+              </Alert>
+            </Box>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setUnassignDialogOpen(false)}>
+              Отмена
+            </Button>
+            <Button 
+              onClick={handleUnassignSelectedAssistant}
+              variant="contained"
+              color="error"
+              disabled={!selectedAssistantToUnassign}
+            >
+              Отменить назначение
             </Button>
           </DialogActions>
         </Dialog>

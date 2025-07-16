@@ -164,7 +164,7 @@ def test_assistant_creation(token):
         "email": "test-improvements@example.com",
         "password": "testpass123",
         "specialization": "full_access",
-        "telegram_username": "test_improvements"
+        "telegram_username": "@test_improvements"
     }
     
     headers = {"Authorization": f"Bearer {token}"}
