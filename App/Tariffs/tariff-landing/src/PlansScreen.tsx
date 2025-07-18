@@ -351,7 +351,7 @@ const PlansScreen: React.FC = () => {
                 <Button
                   variant="outlined"
                   size="large"
-                  onClick={() => window.open('https://t.me/your_bot_username', '_blank')}
+                  onClick={() => window.open('https://t.me/assist_for_rent_bot', '_blank')}
                   sx={{
                     py: 2,
                     px: 4,
