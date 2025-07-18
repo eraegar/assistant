@@ -10,8 +10,8 @@ class TaskAssignmentService:
     def __init__(self, db):
         self.db = db
     
-    def find_assigned_assistants(self, task):
-        """Find all permanently assigned assistants for this client and task type"""
+    def find_assigned_assistant(self, task):
+        """Find permanently assigned assistant for this client and task type"""
         try:
             # Import models here to avoid circular imports
             from models import ClientAssistantAssignment, AssignmentStatus, AssistantProfile, TaskType
@@ -22,10 +22,12 @@ class TaskAssignmentService:
                 ClientAssistantAssignment.status == AssignmentStatus.active
             ).all()
             
-            assigned_assistants = []
-            
             for assignment in assignments:
                 assistant = assignment.assistant
+                
+                # Check if assistant is available (not overloaded)
+                if assistant.current_active_tasks >= 5:
+                    continue
                 
                 # Check task type compatibility
                 allowed_types = []
@@ -46,44 +48,51 @@ class TaskAssignmentService:
                 
                 # Check if task type is allowed
                 if task.type.value in allowed_types:
-                    assigned_assistants.append(assistant)
                     logger.info(f"Found assigned assistant {assistant.id} for client {task.client_id}, task type {task.type.value}")
+                    return assistant
             
-            logger.info(f"Found {len(assigned_assistants)} assigned assistants for client {task.client_id}, task type {task.type.value}")
-            return assigned_assistants
+            logger.info(f"No assigned assistant found for client {task.client_id}, task type {task.type.value}")
+            return None
             
         except Exception as e:
-            logger.error(f"Error finding assigned assistants: {str(e)}")
-            return []
+            logger.error(f"Error finding assigned assistant: {str(e)}")
+            return None
     
-    def assign_to_multiple_assistants(self, task):
-        """Assign task to all available assigned assistants (new multi-assistant system)"""
-        # Get all assigned assistants for this client and task type
-        assigned_assistants = self.find_assigned_assistants(task)
+    def find_best_assistant(self, task):
+        """Find the best available assistant for a task"""
+        # First check for permanently assigned assistant
+        assigned_assistant = self.find_assigned_assistant(task)
+        if assigned_assistant:
+            return assigned_assistant
         
-        if assigned_assistants:
-            logger.info(f"Task {task.id} is available to {len(assigned_assistants)} assigned assistants")
-            # Task stays in marketplace but is also visible to assigned assistants
-            # They can compete to claim it first
-            return True
-        
-        # If no assigned assistants, task goes to general marketplace
-        logger.info(f"Task {task.id} has no assigned assistants, going to general marketplace")
-        return False
+        # If no permanent assignment, find best available assistant (existing logic)
+        # Simplified version - just return None for now (will go to marketplace)
+        return None
     
     def auto_assign_task(self, task) -> bool:
-        """Try to make task available to assigned assistants (new multi-assistant system)"""
+        """Try to automatically assign a task to an assistant"""
         try:
             # Import models here to avoid circular imports
             from models import TaskStatus
             
-            # Make task available to assigned assistants
-            has_assigned_assistants = self.assign_to_multiple_assistants(task)
+            best_assistant = self.find_best_assistant(task)
             
-            # Task stays in pending status but is now available to assigned assistants
-            # in addition to the general marketplace
-            logger.info(f"Task {task.id} is now available in marketplace (assigned assistants: {has_assigned_assistants})")
-            return True
+            if best_assistant:
+                # Assign task
+                task.assistant_id = best_assistant.id
+                task.status = TaskStatus.in_progress
+                task.claimed_at = datetime.utcnow()
+                
+                # Update assistant stats
+                best_assistant.current_active_tasks += 1
+                
+                self.db.commit()
+                
+                logger.info(f"Task {task.id} auto-assigned to assistant {best_assistant.id}")
+                return True
+            
+            logger.info(f"No suitable assistant found for task {task.id}, sending to marketplace")
+            return False
             
         except Exception as e:
             logger.error(f"Error in auto_assign_task: {str(e)}")

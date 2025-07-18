@@ -3,6 +3,7 @@ import traceback
 import html
 import json
 import telegram
+import httpx
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -27,6 +28,30 @@ PLANS_URL = "https://t.me/assist_for_rent_bot/plans"
 MANAGER_URL = "https://t.me/assist_for_rent_bot/manager"
 ASSISTANT_URL = "https://t.me/assist_for_rent_bot/assistant"
 CLIENT_WEBAPP_URL = os.getenv("CLIENT_WEBAPP_URL", "https://rent-assistant.ru")
+API_BASE_URL = os.getenv("API_BASE_URL", "https://api.rent-assistant.ru")
+
+async def log_interaction(user: telegram.User, interaction_type: str, additional_data: dict | None = None):
+    """Log user interaction to the database"""
+    try:
+        data = {
+            "user_id": str(user.id),
+            "username": user.username,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "interaction_type": interaction_type,
+            "additional_data": json.dumps(additional_data) if additional_data else ""
+        }
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{API_BASE_URL}/api/v1/telegram/interactions",
+                json=data,
+                timeout=5.0
+            )
+            if response.status_code != 200:
+                print(f"Failed to log interaction: {response.status_code}")
+    except Exception as e:
+        print(f"Error logging interaction: {e}")
 
 async def start(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE):
     """Отправляет приветственное сообщение с основным меню."""
@@ -44,6 +69,7 @@ async def start(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [telegram.InlineKeyboardButton("📄 Тарифы", callback_data='pricing')],
         [telegram.InlineKeyboardButton("💡 Примеры задач", callback_data='task_examples')],
+        # [telegram.InlineKeyboardButton("🚀 Открыть приложение", web_app=telegram.WebAppInfo(url=CLIENT_WEBAPP_URL))],  # УБРАНО из-за ошибки Button_url_invalid
         [telegram.InlineKeyboardButton("📄 Документы", callback_data='documents')],
         [telegram.InlineKeyboardButton("📞 Поддержка", callback_data='support')]
     ]
@@ -51,6 +77,7 @@ async def start(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE):
     markup = telegram.InlineKeyboardMarkup(keyboard)
 
     if update.message:
+        await log_interaction(user, "start")
         await update.message.reply_text(welcome_text, reply_markup=markup)
 
 async def handle_keywords(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE):
@@ -79,6 +106,7 @@ async def handle_callback(update: telegram.Update, context: ContextTypes.DEFAULT
         return
 
     if query.data == 'pricing':
+        await log_interaction(user, "pricing")
         await query.edit_message_text(
             text=f"Вы можете ознакомиться с тарифами по ссылке:\n{PLANS_URL}",
             reply_markup=telegram.InlineKeyboardMarkup([
@@ -87,6 +115,7 @@ async def handle_callback(update: telegram.Update, context: ContextTypes.DEFAULT
         )
 
     elif query.data == 'task_examples':
+        await log_interaction(user, "task_examples")
         examples_text = (
             "💡 <b>Чем может помочь ассистент?</b>\n\n"
             "Практически всем! Вот несколько популярных примеров:\n\n"
@@ -100,11 +129,9 @@ async def handle_callback(update: telegram.Update, context: ContextTypes.DEFAULT
             "📄  Расшифровать аудиозапись совещания в текст\n"
             "📅  Организовать встречу с партнерами, согласовав время\n"
             "📝  Найти и отфильтровать 10 резюме кандидатов\n\n"
-            "Готовы попробовать? Нажмите на кнопку «Открыть Приложение» прямо сейчас!"
+            "Готовы попробовать? Напишите /start, чтобы вернуться в главное меню."
         )
         keyboard = [
-            # Временно убираем кнопку, вызывающую ошибку
-            # [telegram.InlineKeyboardButton("🚀 Создать задачу в приложении", web_app=telegram.WebAppInfo(url=CLIENT_WEBAPP_URL))]
             [telegram.InlineKeyboardButton("🔙 Назад", callback_data='back_to_main')]
         ]
         markup = telegram.InlineKeyboardMarkup(keyboard)
@@ -152,11 +179,40 @@ async def handle_callback(update: telegram.Update, context: ContextTypes.DEFAULT
         keyboard = [
             [telegram.InlineKeyboardButton("📄 Тарифы", callback_data='pricing')],
             [telegram.InlineKeyboardButton("💡 Примеры задач", callback_data='task_examples')],
+            # [telegram.InlineKeyboardButton("🚀 Открыть приложение", web_app=telegram.WebAppInfo(url=CLIENT_WEBAPP_URL))],  # УБРАНО из-за ошибки Button_url_invalid
             [telegram.InlineKeyboardButton("📄 Документы", callback_data='documents')],
             [telegram.InlineKeyboardButton("📞 Поддержка", callback_data='support')]
         ]
         markup = telegram.InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(welcome_text, reply_markup=markup)
+
+async def handle_web_app_data(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle web app data from mini app interactions"""
+    user = update.effective_user
+    if not user or not update.message:
+        return
+    
+    web_app_data = update.message.web_app_data
+    if web_app_data:
+        try:
+            # Parse the web app data
+            data = json.loads(web_app_data.data) if web_app_data.data else {}
+            
+            # Log app button press
+            await log_interaction(user, "app_button_pressed", {
+                "button_text": web_app_data.button_text,
+                "data": data
+            })
+            
+            # Send confirmation message
+            await update.message.reply_text(
+                "🚀 Отлично! Вы открыли наше приложение. "
+                "Теперь вы можете создавать задачи и управлять подписками прямо здесь."
+            )
+            
+        except Exception as e:
+            print(f"Error processing web app data: {e}")
+            await log_interaction(user, "app_interaction_error", {"error": str(e)})
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Логирует ошибки и отправляет сообщение пользователю."""
@@ -212,6 +268,7 @@ def main():
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(handle_callback))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_keywords))
+    application.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, handle_web_app_data))
     
     application.add_error_handler(error_handler)
 

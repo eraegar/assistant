@@ -221,10 +221,22 @@ class ClientAssistantAssignment(Base):
     # Task type restrictions based on assistant specialization and client subscription
     allowed_task_types = Column(String, nullable=True)  # JSON string like '["personal"]' or '["personal", "business"]'
     
-    # Assignment type: main assistant is the primary contact, others are secondary
-    is_primary = Column(Boolean, default=False)  # True for main assistant, False for secondary
-    
     # Relationships
     client = relationship("ClientProfile", back_populates="assigned_assistants")
     assistant = relationship("AssistantProfile", back_populates="assigned_clients")
     created_by_manager = relationship("ManagerProfile")
+
+
+class TelegramInteraction(Base):
+    __tablename__ = "telegram_interactions"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(String, nullable=False)  # Telegram user ID
+    username = Column(String, nullable=True)  # Telegram username
+    first_name = Column(String, nullable=True)
+    last_name = Column(String, nullable=True)
+    interaction_type = Column(String, nullable=False)  # 'start', 'pricing', 'task_examples', 'documents', 'support'
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Additional data as JSON
+    additional_data = Column(String, nullable=True)  # JSON string for extra data

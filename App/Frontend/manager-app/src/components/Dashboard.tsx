@@ -57,6 +57,7 @@ import {
   Add as AddIcon,
   SupervisorAccount as SupervisorIcon,
   Info as InfoIcon,
+  ArrowForward,
 } from '@mui/icons-material';
 import { useManagerStore } from '../stores/useManagerStore';
 import { managerGradients } from '../theme';
@@ -209,6 +210,11 @@ const Dashboard: React.FC = () => {
   const [taskPage, setTaskPage] = useState(0);
   const [taskRowsPerPage, setTaskRowsPerPage] = useState(10);
   const [taskFilter, setTaskFilter] = useState('');
+  const [taskStatusFilter, setTaskStatusFilter] = useState('');
+  const [taskTypeFilter, setTaskTypeFilter] = useState('');
+  const [taskAssistantFilter, setTaskAssistantFilter] = useState('');
+  const [taskDateFromFilter, setTaskDateFromFilter] = useState('');
+  const [taskDateToFilter, setTaskDateToFilter] = useState('');
   const [assistantPage, setAssistantPage] = useState(0);
   const [assistantRowsPerPage, setAssistantRowsPerPage] = useState(10);
   const [reassignDialogOpen, setReassignDialogOpen] = useState(false);
@@ -220,6 +226,8 @@ const Dashboard: React.FC = () => {
   const [clientRowsPerPage, setClientRowsPerPage] = useState(10);
   const [clientFilter, setClientFilter] = useState('');
   const [subscriptionFilter, setSubscriptionFilter] = useState('');
+  const [subscriptionEndDateFilter, setSubscriptionEndDateFilter] = useState('');
+  const [clientTaskTypeFilter, setClientTaskTypeFilter] = useState('');
   
   // New state for assistant creation
   const [createAssistantDialogOpen, setCreateAssistantDialogOpen] = useState(false);
@@ -249,6 +257,14 @@ const Dashboard: React.FC = () => {
   const [clientProfileDialogOpen, setClientProfileDialogOpen] = useState(false);
   const [selectedClientProfile, setSelectedClientProfile] = useState<Client | null>(null);
   
+  // New state for Telegram analytics
+  const [telegramAnalytics, setTelegramAnalytics] = useState<any>(null);
+  
+  // New state for assignment management
+  const [assignmentManagementDialogOpen, setAssignmentManagementDialogOpen] = useState(false);
+  const [selectedClientForAssignments, setSelectedClientForAssignments] = useState<Client | null>(null);
+  const [clientAssignments, setClientAssignments] = useState<any[]>([]);
+  
   const { manager, logout } = useManagerStore();
 
   // Function to open assistant profile dialog
@@ -268,6 +284,8 @@ const Dashboard: React.FC = () => {
       loadAssistants();
     } else if (currentTab === 3) {
       loadClients();
+    } else if (currentTab === 4) {
+      loadTelegramAnalytics();
     }
   }, [currentTab]);
 
@@ -277,6 +295,13 @@ const Dashboard: React.FC = () => {
       loadClients();
     }
   }, [subscriptionFilter]);
+
+  // Перезагружаем задачи при изменении фильтров
+  useEffect(() => {
+    if (currentTab === 1) {
+      loadTasks();
+    }
+  }, [taskStatusFilter, taskTypeFilter, taskAssistantFilter, taskDateFromFilter, taskDateToFilter]);
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem('manager_token');
@@ -310,7 +335,19 @@ const Dashboard: React.FC = () => {
   const loadTasks = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE_URL}/api/v1/management/tasks`, {
+      
+      // Build query parameters
+      const params = new URLSearchParams();
+      if (taskStatusFilter) params.append('status', taskStatusFilter);
+      if (taskTypeFilter) params.append('task_type', taskTypeFilter);
+      if (taskAssistantFilter) params.append('assistant_id', taskAssistantFilter);
+      if (taskDateFromFilter) params.append('date_from', taskDateFromFilter);
+      if (taskDateToFilter) params.append('date_to', taskDateToFilter);
+      
+      const queryString = params.toString();
+      const url = `${API_BASE_URL}/api/v1/management/tasks${queryString ? '?' + queryString : ''}`;
+      
+      const response = await fetch(url, {
         headers: getAuthHeaders()
       });
       
@@ -712,23 +749,122 @@ const Dashboard: React.FC = () => {
           <Typography variant="h5" fontWeight="bold">
             Управление задачами
           </Typography>
-          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+          <Button
+            variant="outlined"
+            startIcon={<RefreshIcon />}
+            onClick={loadTasks}
+          >
+            Обновить
+          </Button>
+        </Box>
+
+        {/* Enhanced Task Filters */}
+        <EnhancedPaper sx={{ p: 3, mb: 3 }}>
+          <Typography variant="h6" fontWeight="bold" gutterBottom>
+            Фильтры задач
+          </Typography>
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6} md={3}>
             <TextField
               size="small"
-              placeholder="Поиск задач..."
+                placeholder="Поиск по названию, описанию, клиенту..."
               value={taskFilter}
               onChange={(e) => setTaskFilter(e.target.value)}
-              sx={{ minWidth: 200 }}
+                fullWidth
+                label="Поиск"
+              />
+            </Grid>
+            <Grid item xs={12} sm={6} md={2}>
+              <FormControl size="small" fullWidth>
+                <InputLabel>Статус</InputLabel>
+                <Select
+                  value={taskStatusFilter}
+                  onChange={(e) => setTaskStatusFilter(e.target.value)}
+                  label="Статус"
+                >
+                  <MenuItem value="">Все статусы</MenuItem>
+                  <MenuItem value="pending">Ожидает</MenuItem>
+                  <MenuItem value="in_progress">В работе</MenuItem>
+                  <MenuItem value="completed">Завершена</MenuItem>
+                  <MenuItem value="approved">Одобрена</MenuItem>
+                  <MenuItem value="cancelled">Отменена</MenuItem>
+                  <MenuItem value="rejected">Отклонена</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={6} md={2}>
+              <FormControl size="small" fullWidth>
+                <InputLabel>Тип</InputLabel>
+                <Select
+                  value={taskTypeFilter}
+                  onChange={(e) => setTaskTypeFilter(e.target.value)}
+                  label="Тип"
+                >
+                  <MenuItem value="">Все типы</MenuItem>
+                  <MenuItem value="personal">Личные</MenuItem>
+                  <MenuItem value="business">Бизнес</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={6} md={2}>
+              <FormControl size="small" fullWidth>
+                <InputLabel>Ассистент</InputLabel>
+                <Select
+                  value={taskAssistantFilter}
+                  onChange={(e) => setTaskAssistantFilter(e.target.value)}
+                  label="Ассистент"
+                >
+                  <MenuItem value="">Все ассистенты</MenuItem>
+                  <MenuItem value="0">Не назначен</MenuItem>
+                  {assistants.map((assistant) => (
+                    <MenuItem key={assistant.id} value={assistant.id.toString()}>
+                      {assistant.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={6} md={1.5}>
+              <TextField
+                size="small"
+                type="date"
+                label="С даты"
+                value={taskDateFromFilter}
+                onChange={(e) => setTaskDateFromFilter(e.target.value)}
+                fullWidth
+                InputLabelProps={{ shrink: true }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6} md={1.5}>
+              <TextField
+                size="small"
+                type="date"
+                label="По дату"
+                value={taskDateToFilter}
+                onChange={(e) => setTaskDateToFilter(e.target.value)}
+                fullWidth
+                InputLabelProps={{ shrink: true }}
             />
+            </Grid>
+          </Grid>
+          
+          {/* Clear filters button */}
+          <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
             <Button
-              variant="outlined"
-              startIcon={<RefreshIcon />}
-              onClick={loadTasks}
+              size="small"
+              onClick={() => {
+                setTaskFilter('');
+                setTaskStatusFilter('');
+                setTaskTypeFilter('');
+                setTaskAssistantFilter('');
+                setTaskDateFromFilter('');
+                setTaskDateToFilter('');
+              }}
             >
-              Обновить
+              Очистить фильтры
             </Button>
           </Box>
-        </Box>
+        </EnhancedPaper>
 
         <EnhancedPaper>
           <TableContainer>
@@ -1200,6 +1336,31 @@ const Dashboard: React.FC = () => {
                     <MenuItem value="all">Все клиенты</MenuItem>
                   </Select>
                 </FormControl>
+                <FormControl size="small" sx={{ minWidth: 180 }}>
+                  <InputLabel>Окончание подписки</InputLabel>
+                  <Select
+                    value={subscriptionEndDateFilter}
+                    onChange={(e) => setSubscriptionEndDateFilter(e.target.value)}
+                    label="Окончание подписки"
+                  >
+                    <MenuItem value="">Все даты</MenuItem>
+                    <MenuItem value="expired">Уже истекли</MenuItem>
+                    <MenuItem value="week">Истекают в течение недели</MenuItem>
+                    <MenuItem value="month">Истекают в течение месяца</MenuItem>
+                  </Select>
+                </FormControl>
+                <FormControl size="small" sx={{ minWidth: 150 }}>
+                  <InputLabel>Тип задач</InputLabel>
+                  <Select
+                    value={clientTaskTypeFilter}
+                    onChange={(e) => setClientTaskTypeFilter(e.target.value)}
+                    label="Тип задач"
+                  >
+                    <MenuItem value="">Все типы</MenuItem>
+                    <MenuItem value="personal">Личные</MenuItem>
+                    <MenuItem value="business">Бизнес</MenuItem>
+                  </Select>
+                </FormControl>
               </Box>
             </Box>
           </Box>
@@ -1212,6 +1373,7 @@ const Dashboard: React.FC = () => {
                   <TableCell>Имя</TableCell>
                   <TableCell>Подписка</TableCell>
                   <TableCell>Статус</TableCell>
+                  <TableCell>Окончание подписки</TableCell>
                   <TableCell>Задач</TableCell>
                   <TableCell>Назначенные ассистенты</TableCell>
                   <TableCell>Регистрация</TableCell>
@@ -1219,7 +1381,7 @@ const Dashboard: React.FC = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {clients.map((client) => (
+                {paginatedClients.map((client) => (
                   <TableRow key={client.id} hover>
                     <TableCell>{client.id}</TableCell>
                     <TableCell>
@@ -1252,6 +1414,26 @@ const Dashboard: React.FC = () => {
                         />
                       ) : (
                         <Chip label="Нет подписки" size="small" color="default" />
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {client.subscription?.expires_at ? (
+                        <Box>
+                          <Typography variant="body2" color={
+                            new Date(client.subscription.expires_at) < new Date() ? 'error.main' : 
+                            new Date(client.subscription.expires_at) < new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) ? 'warning.main' : 
+                            'text.primary'
+                          }>
+                            {new Date(client.subscription.expires_at).toLocaleDateString('ru-RU')}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {Math.ceil((new Date(client.subscription.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))} дней
+                          </Typography>
+                        </Box>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">
+                          —
+                        </Typography>
                       )}
                     </TableCell>
                     <TableCell>
@@ -1307,35 +1489,16 @@ const Dashboard: React.FC = () => {
                             <InfoIcon />
                           </IconButton>
                         </Tooltip>
-                        <Tooltip title="Назначить ассистента">
+                        <Tooltip title="Управление ассистентами">
                           <IconButton
                             size="small"
                             color="info"
-                            onClick={() => openAssignClientDialog(client)}
+                            onClick={() => openAssignmentManagementDialog(client)}
                           >
-                            <AssignIcon />
+                            <SupervisorIcon />
                           </IconButton>
                         </Tooltip>
-                        {client.assigned_assistants && client.assigned_assistants.length > 0 && (
-                          <Tooltip title="Отменить назначение ассистента">
-                            <IconButton
-                              size="small"
-                              color="warning"
-                              onClick={() => handleUnassignClient(client)}
-                            >
-                              <UnassignIcon />
-                            </IconButton>
-                          </Tooltip>
-                        )}
-                        <Tooltip title="Управление подпиской">
-                          <IconButton
-                            size="small"
-                            color="secondary"
-                            onClick={() => openSubscriptionDialog(client)}
-                          >
-                            <BusinessIcon />
-                          </IconButton>
-                        </Tooltip>
+
                       </Box>
                     </TableCell>
                   </TableRow>
@@ -1345,7 +1508,7 @@ const Dashboard: React.FC = () => {
           </TableContainer>
           <TablePagination
             component="div"
-            count={clients.length}
+            count={filteredClients.length}
             page={clientPage}
             onPageChange={(_, newPage) => setClientPage(newPage)}
             rowsPerPage={clientRowsPerPage}
@@ -1381,6 +1544,27 @@ const Dashboard: React.FC = () => {
     } catch (error) {
       console.error('Ошибка загрузки клиентов:', error);
       setError('Ошибка загрузки клиентов');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadTelegramAnalytics = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`${API_BASE_URL}/api/v1/telegram/analytics?days=30`, {
+        headers: getAuthHeaders()
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setTelegramAnalytics(data);
+      } else {
+        throw new Error('Ошибка загрузки Telegram аналитики');
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки Telegram аналитики:', error);
+      setError('Ошибка загрузки Telegram аналитики');
     } finally {
       setLoading(false);
     }
@@ -1455,105 +1639,7 @@ const Dashboard: React.FC = () => {
     setNewAssistant({ ...newAssistant, phone: formatPhoneNumber(value) });
   };
 
-  const handleAssignClient = async () => {
-    if (!selectedClient || !assignmentAssistant) return;
-    
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/v1/management/clients/${selectedClient.id}/assign-assistant`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ assistant_id: assignmentAssistant })
-      });
-      
-      if (response.ok) {
-        const result = await response.json();
-        setError(`Клиент успешно закреплен за ассистентом! Назначено задач: ${result.assigned_tasks}`);
-        setAssignClientDialogOpen(false);
-        setSelectedClient(null);
-        setAssignmentAssistant(null);
-        await loadClients(); // Refresh clients
-        await loadAssistants(); // Refresh assistants to update their task counts
-        setTimeout(() => setError(null), 3000);
-      } else {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Ошибка назначения клиента');
-      }
-    } catch (error) {
-      console.error('Ошибка назначения клиента:', error);
-      setError(error instanceof Error ? error.message : 'Ошибка назначения клиента');
-    }
-  };
 
-  const handleUnassignClient = async (client: Client) => {
-    try {
-      const confirmUnassign = window.confirm(
-        `Вы уверены, что хотите отменить назначение ассистента для клиента "${client.name}"? Все активные задачи вернутся в маркетплейс.`
-      );
-      
-      if (!confirmUnassign) return;
-      
-      // Get the assignment ID from the client's assigned assistants
-      const assignment = client.assigned_assistants?.[0];
-      if (!assignment) {
-        throw new Error('Не найдено назначение для отмены');
-      }
-      
-      const response = await fetch(`${API_BASE_URL}/api/v1/management/assignments/${assignment.assignment_id}/deactivate`, {
-        method: 'PUT',
-        headers: getAuthHeaders()
-      });
-      
-      if (response.ok) {
-        const result = await response.json();
-        setError(`Назначение ассистента отменено! ${result.message}`);
-        await loadClients(); // Refresh clients
-        await loadAssistants(); // Refresh assistants to update their task counts
-        setTimeout(() => setError(null), 3000);
-      } else {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Ошибка отмены назначения');
-      }
-    } catch (error) {
-      console.error('Ошибка отмены назначения:', error);
-      setError(error instanceof Error ? error.message : 'Ошибка отмены назначения');
-    }
-  };
-
-  const handleUnassignSpecificAssistant = async (client: Client, assignmentId: number) => {
-    try {
-      const confirmUnassign = window.confirm(
-        `Вы уверены, что хотите отменить это назначение ассистента для клиента "${client.name}"?`
-      );
-      
-      if (!confirmUnassign) return;
-      
-      const response = await fetch(`${API_BASE_URL}/api/v1/management/assignments/${assignmentId}/deactivate`, {
-        method: 'PUT',
-        headers: getAuthHeaders()
-      });
-      
-      if (response.ok) {
-        const result = await response.json();
-        setError(`Назначение ассистента отменено! ${result.message}`);
-        await loadClients(); // Refresh clients
-        await loadAssistants(); // Refresh assistants to update their task counts
-        setAssignClientDialogOpen(false); // Close the dialog
-        setTimeout(() => setError(null), 3000);
-      } else {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Ошибка отмены назначения');
-      }
-    } catch (error) {
-      console.error('Ошибка отмены назначения:', error);
-      setError(error instanceof Error ? error.message : 'Ошибка отмены назначения');
-    }
-  };
-
-  const openAssignClientDialog = async (client: Client) => {
-    setSelectedClient(client);
-    await loadAvailableAssistants('personal'); // Load available assistants for general assignment
-    setAssignClientDialogOpen(true);
-  };
 
   const handleResetPassword = async (assistantId: number) => {
     try {
@@ -1578,19 +1664,423 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const renderTelegramTab = () => {
+    if (loading) return <CircularProgress />;
+
+    if (!telegramAnalytics) {
+      return (
+        <Box sx={{ textAlign: 'center', py: 4 }}>
+          <Typography variant="h6">Нет данных Telegram аналитики</Typography>
+          <Button onClick={loadTelegramAnalytics} variant="outlined" sx={{ mt: 2 }}>
+            Загрузить данные
+          </Button>
+        </Box>
+      );
+    }
+
+    return (
+      <Box>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+          <Typography variant="h5" fontWeight="bold">
+            Telegram Аналитика (30 дней)
+          </Typography>
+          <Button
+            variant="outlined"
+            startIcon={<RefreshIcon />}
+            onClick={loadTelegramAnalytics}
+          >
+            Обновить
+          </Button>
+        </Box>
+
+        {/* Summary Cards */}
+        <Grid container spacing={3} sx={{ mb: 4 }}>
+          <Grid item xs={12} sm={6} md={3}>
+            <StatsCard>
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  <PeopleIcon color="primary" sx={{ mr: 2, fontSize: 40 }} />
+                  <Box>
+                    <Typography color="textSecondary" gutterBottom variant="body2" fontWeight={500}>
+                      Взаимодействия
+                    </Typography>
+                    <Typography variant="h4" fontWeight="bold">
+                      {telegramAnalytics.summary.total_interactions}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Всего
+                    </Typography>
+                  </Box>
+                </Box>
+              </CardContent>
+            </StatsCard>
+          </Grid>
+
+          <Grid item xs={12} sm={6} md={3}>
+            <StatsCard>
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  <PersonIcon color="info" sx={{ mr: 2, fontSize: 40 }} />
+                  <Box>
+                    <Typography color="textSecondary" gutterBottom variant="body2" fontWeight={500}>
+                      Уникальные пользователи
+                    </Typography>
+                    <Typography variant="h4" fontWeight="bold">
+                      {telegramAnalytics.summary.unique_users}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Пользователей
+                    </Typography>
+                  </Box>
+                </Box>
+              </CardContent>
+            </StatsCard>
+          </Grid>
+
+          <Grid item xs={12} sm={6} md={3}>
+            <StatsCard>
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  <TrendingUpIcon color="success" sx={{ mr: 2, fontSize: 40 }} />
+                  <Box>
+                    <Typography color="textSecondary" gutterBottom variant="body2" fontWeight={500}>
+                      Конверсия в подписку
+                    </Typography>
+                    <Typography variant="h4" fontWeight="bold">
+                      {telegramAnalytics.conversion_funnel?.telegram_to_subscription_rate || 0}%
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Telegram → Оплата
+                    </Typography>
+                  </Box>
+                </Box>
+              </CardContent>
+            </StatsCard>
+          </Grid>
+
+          <Grid item xs={12} sm={6} md={3}>
+            <StatsCard>
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  <PersonIcon color="warning" sx={{ mr: 2, fontSize: 40 }} />
+                  <Box>
+                    <Typography color="textSecondary" gutterBottom variant="body2" fontWeight={500}>
+                      Платящих клиентов
+                    </Typography>
+                    <Typography variant="h4" fontWeight="bold">
+                      {telegramAnalytics.summary.users_with_subscriptions || 0}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      За период
+                    </Typography>
+                  </Box>
+                </Box>
+              </CardContent>
+            </StatsCard>
+          </Grid>
+        </Grid>
+
+        {/* Conversion Funnel */}
+        {telegramAnalytics.user_journey && (
+          <EnhancedPaper sx={{ p: 3, mb: 3 }}>
+            <Typography variant="h6" fontWeight="bold" gutterBottom>
+              Воронка конверсии 📊
+            </Typography>
+            <Grid container spacing={3} sx={{ mt: 1 }}>
+              <Grid item xs={12} md={8}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  {/* Step 1: Telegram Users */}
+                  <Box sx={{ textAlign: 'center', minWidth: 120 }}>
+                    <Box sx={{ 
+                      bgcolor: 'primary.50', 
+                      borderRadius: 2, 
+                      p: 2, 
+                      border: '2px solid', 
+                      borderColor: 'primary.main'
+                    }}>
+                      <Typography variant="h5" fontWeight="bold" color="primary.main">
+                        {telegramAnalytics.user_journey.unique_telegram_users}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Telegram пользователи
+                      </Typography>
+                    </Box>
+                  </Box>
+
+                  {/* Arrow */}
+                  <ArrowForward color="action" />
+
+                  {/* Step 2: App Button Pressed */}
+                  <Box sx={{ textAlign: 'center', minWidth: 120 }}>
+                    <Box sx={{ 
+                      bgcolor: 'info.50', 
+                      borderRadius: 2, 
+                      p: 2, 
+                      border: '2px solid', 
+                      borderColor: 'info.main'
+                    }}>
+                      <Typography variant="h5" fontWeight="bold" color="info.main">
+                        {telegramAnalytics.user_journey.app_button_pressed}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Нажали "Приложение"
+                      </Typography>
+                      <Typography variant="caption" color="info.main">
+                        {telegramAnalytics.conversion_funnel.telegram_to_app_rate}%
+                      </Typography>
+                    </Box>
+                  </Box>
+
+                  {/* Arrow */}
+                  <ArrowForward color="action" />
+
+                  {/* Step 3: Registered */}
+                  <Box sx={{ textAlign: 'center', minWidth: 120 }}>
+                    <Box sx={{ 
+                      bgcolor: 'warning.50', 
+                      borderRadius: 2, 
+                      p: 2, 
+                      border: '2px solid', 
+                      borderColor: 'warning.main'
+                    }}>
+                      <Typography variant="h5" fontWeight="bold" color="warning.main">
+                        {telegramAnalytics.user_journey.registered_users}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Зарегистрировались
+                      </Typography>
+                      <Typography variant="caption" color="warning.main">
+                        {telegramAnalytics.conversion_funnel.app_to_registration_rate}%
+                      </Typography>
+                    </Box>
+                  </Box>
+
+                  {/* Arrow */}
+                  <ArrowForward color="action" />
+
+                  {/* Step 4: Paying Customers */}
+                  <Box sx={{ textAlign: 'center', minWidth: 120 }}>
+                    <Box sx={{ 
+                      bgcolor: 'success.50', 
+                      borderRadius: 2, 
+                      p: 2, 
+                      border: '2px solid', 
+                      borderColor: 'success.main'
+                    }}>
+                      <Typography variant="h5" fontWeight="bold" color="success.main">
+                        {telegramAnalytics.user_journey.paying_customers}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Оплатили подписку
+                      </Typography>
+                      <Typography variant="caption" color="success.main">
+                        {telegramAnalytics.conversion_funnel.registration_to_subscription_rate}%
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Box>
+              </Grid>
+              
+              <Grid item xs={12} md={4}>
+                <Box sx={{ textAlign: 'center' }}>
+                  <Typography variant="h6" fontWeight="bold" gutterBottom>
+                    Основные метрики
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    <Box sx={{ p: 1, bgcolor: 'grey.50', borderRadius: 1 }}>
+                      <Typography variant="body2">
+                        <strong>Общая конверсия:</strong> {telegramAnalytics.conversion_funnel.telegram_to_subscription_rate}%
+                      </Typography>
+                    </Box>
+                    <Box sx={{ p: 1, bgcolor: 'grey.50', borderRadius: 1 }}>
+                      <Typography variant="body2">
+                        <strong>CTR на приложение:</strong> {telegramAnalytics.conversion_funnel.telegram_to_app_rate}%
+                      </Typography>
+                    </Box>
+                    <Box sx={{ p: 1, bgcolor: 'grey.50', borderRadius: 1 }}>
+                      <Typography variant="body2">
+                        <strong>Регистрация из приложения:</strong> {telegramAnalytics.conversion_funnel.app_to_registration_rate}%
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Box>
+              </Grid>
+            </Grid>
+          </EnhancedPaper>
+        )}
+
+        {/* Interaction Distribution */}
+        <EnhancedPaper sx={{ p: 3, mb: 3 }}>
+          <Typography variant="h6" fontWeight="bold" gutterBottom>
+            Распределение взаимодействий
+          </Typography>
+          <Box sx={{ mt: 2 }}>
+            {Object.entries(telegramAnalytics.interaction_distribution).map(([type, count]) => (
+              <Box key={type} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+                <Typography variant="body1" fontWeight={500}>
+                  {type === 'start' ? 'Команда /start' :
+                   type === 'pricing' ? 'Просмотр тарифов' :
+                   type === 'task_examples' ? 'Примеры задач' :
+                   type === 'documents' ? 'Документы' :
+                   type === 'support' ? 'Поддержка' :
+                   type === 'app_button_pressed' ? '🚀 Нажатие на приложение' :
+                   type === 'app_interaction_error' ? '❌ Ошибки приложения' : type}
+                </Typography>
+                <GradientChip 
+                  label={`${count} раз`}
+                  color="primary" 
+                  size="small"
+                />
+              </Box>
+            ))}
+          </Box>
+        </EnhancedPaper>
+      </Box>
+    );
+  };
+
   // Filter and paginate clients (API уже возвращает только клиентов с активными подписками по умолчанию)
   const filteredClients = clients.filter(client => {
     const matchesFilter = client.name.toLowerCase().includes(clientFilter.toLowerCase()) ||
                          client.phone.toLowerCase().includes(clientFilter.toLowerCase()) ||
                          (client.email && client.email.toLowerCase().includes(clientFilter.toLowerCase()));
+      
+    // Filter by subscription end date
+    let matchesEndDateFilter = true;
+    if (subscriptionEndDateFilter && client.subscription?.expires_at) {
+      const endDate = new Date(client.subscription.expires_at);
+      const now = new Date();
+      const weekFromNow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      const monthFromNow = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      
+      switch (subscriptionEndDateFilter) {
+        case 'expired':
+          matchesEndDateFilter = endDate < now;
+          break;
+        case 'week':
+          matchesEndDateFilter = endDate <= weekFromNow && endDate >= now;
+          break;
+        case 'month':
+          matchesEndDateFilter = endDate <= monthFromNow && endDate >= now;
+          break;
+        default:
+          matchesEndDateFilter = true;
+      }
+    }
     
-    return matchesFilter;
+    // Filter by task types based on assigned assistants' specializations
+    let matchesTaskTypeFilter = true;
+    if (clientTaskTypeFilter && client.assigned_assistants && client.assigned_assistants.length > 0) {
+      const hasTaskTypeCapability = client.assigned_assistants.some(assistant => {
+        if (clientTaskTypeFilter === 'personal') {
+          return assistant.specialization === 'personal_only' || assistant.specialization === 'full_access';
+        } else if (clientTaskTypeFilter === 'business') {
+          return assistant.specialization === 'business_only' || assistant.specialization === 'full_access';
+        }
+        return false;
+      });
+      matchesTaskTypeFilter = hasTaskTypeCapability;
+    } else if (clientTaskTypeFilter) {
+      // If filter is set but client has no assistants, exclude them
+      matchesTaskTypeFilter = false;
+    }
+    
+    return matchesFilter && matchesEndDateFilter && matchesTaskTypeFilter;
   });
 
   const paginatedClients = filteredClients.slice(
     clientPage * clientRowsPerPage,
     clientPage * clientRowsPerPage + clientRowsPerPage
   );
+
+  const loadClientAssignments = async (clientId: number) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/v1/management/clients/${clientId}/assignments`, {
+        headers: getAuthHeaders()
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setClientAssignments(data.assignments);
+      } else {
+        throw new Error('Ошибка загрузки назначений');
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки назначений:', error);
+      setError('Ошибка загрузки назначений');
+    }
+  };
+
+  const handleRemoveAssignment = async (clientId: number, assignmentId: number) => {
+    try {
+      const confirmRemove = window.confirm(
+        'Вы уверены, что хотите отменить данное назначение? Все активные задачи этого ассистента вернутся в маркетплейс.'
+      );
+      
+      if (!confirmRemove) return;
+      
+      const response = await fetch(`${API_BASE_URL}/api/v1/management/clients/${clientId}/assignments/${assignmentId}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        setError(`Назначение отменено! ${result.message}`);
+        await loadClientAssignments(clientId); // Refresh assignments
+        await loadClients(); // Refresh clients list
+        await loadAssistants(); // Refresh assistants
+        setTimeout(() => setError(null), 3000);
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Ошибка отмены назначения');
+      }
+    } catch (error) {
+      console.error('Ошибка отмены назначения:', error);
+      setError(error instanceof Error ? error.message : 'Ошибка отмены назначения');
+    }
+  };
+
+  const openAssignmentManagementDialog = async (client: Client) => {
+    setSelectedClientForAssignments(client);
+    await loadClientAssignments(client.id);
+    setAssignmentManagementDialogOpen(true);
+  };
+
+  const handleAssignClient = async () => {
+    if (!selectedClient || !assignmentAssistant) return;
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/v1/management/clients/${selectedClient.id}/assign-assistant`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ assistant_id: assignmentAssistant })
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        setError(`Ассистент успешно назначен! ${result.message}`);
+        setAssignClientDialogOpen(false);
+        setSelectedClient(null);
+        setAssignmentAssistant(null);
+        await loadClients(); // Refresh clients
+        await loadAssistants(); // Refresh assistants to update their task counts
+        
+        // If assignment management dialog is open, refresh it too
+        if (assignmentManagementDialogOpen && selectedClientForAssignments) {
+          await loadClientAssignments(selectedClientForAssignments.id);
+        }
+        
+        setTimeout(() => setError(null), 3000);
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Ошибка назначения ассистента');
+      }
+    } catch (error) {
+      console.error('Ошибка назначения ассистента:', error);
+      setError(error instanceof Error ? error.message : 'Ошибка назначения ассистента');
+    }
+  };
 
   return (
     <Box sx={{ flexGrow: 1 }}>
@@ -1646,6 +2136,11 @@ const Dashboard: React.FC = () => {
               label="Клиенты" 
               sx={{ fontWeight: 500 }}
             />
+            <Tab 
+              icon={<AssessmentIcon />} 
+              label="Telegram" 
+              sx={{ fontWeight: 500 }}
+            />
           </Tabs>
         </EnhancedPaper>
 
@@ -1655,6 +2150,7 @@ const Dashboard: React.FC = () => {
           {currentTab === 1 && renderTasksTab()}
           {currentTab === 2 && renderAssistantsTab()}
           {currentTab === 3 && renderClientsTab()}
+          {currentTab === 4 && renderTelegramTab()}
         </Box>
 
         {/* Task Reassignment Dialog */}
@@ -1992,70 +2488,121 @@ const Dashboard: React.FC = () => {
           </DialogActions>
         </Dialog>
 
-        {/* Assign Client Dialog */}
+        {/* Assignment Management Dialog */}
+        <Dialog
+          open={assignmentManagementDialogOpen}
+          onClose={() => setAssignmentManagementDialogOpen(false)}
+          maxWidth="md"
+          fullWidth
+        >
+          <DialogTitle>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <SupervisorIcon color="primary" />
+              <Typography variant="h6" fontWeight="bold">
+                Управление ассистентами: {selectedClientForAssignments?.name}
+              </Typography>
+            </Box>
+          </DialogTitle>
+          <DialogContent>
+            <Box sx={{ mt: 2 }}>
+              {/* Current Assignments */}
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="h6" fontWeight="bold" gutterBottom>
+                  Текущие назначения ({clientAssignments.length})
+                </Typography>
+                
+                {clientAssignments.length > 0 ? (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    {clientAssignments.map((assignment) => (
+                      <EnhancedPaper key={assignment.id} sx={{ p: 2 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <Box sx={{ flex: 1 }}>
+                            <Typography variant="body1" fontWeight="bold">
+                              {assignment.assistant.name}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              Специализация: {getStatusText(assignment.assistant.specialization)}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              Статус: {assignment.assistant.status === 'online' ? 'В сети' : 'Не в сети'} • 
+                              Активных задач: {assignment.assistant.current_active_tasks}/5 • 
+                              Рейтинг: ★ {assignment.assistant.average_rating.toFixed(1)}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              Типы задач: {assignment.allowed_task_types.join(', ')}
+                            </Typography>
+                            <br />
+                            <Typography variant="caption" color="text.secondary">
+                              Назначен: {new Date(assignment.assigned_at).toLocaleDateString('ru-RU')} • 
+                              Менеджер: {assignment.created_by_manager || 'Неизвестно'}
+                            </Typography>
+                          </Box>
+                          <Box>
+                            <Tooltip title="Отменить назначение">
+                              <IconButton
+                                color="error"
+                                onClick={() => selectedClientForAssignments && handleRemoveAssignment(selectedClientForAssignments.id, assignment.id)}
+                              >
+                                <UnassignIcon />
+                              </IconButton>
+                            </Tooltip>
+                          </Box>
+                        </Box>
+                      </EnhancedPaper>
+                    ))}
+                  </Box>
+                ) : (
+                  <Box sx={{ textAlign: 'center', py: 3, bgcolor: 'grey.50', borderRadius: 2 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      У этого клиента пока нет назначенных ассистентов
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
+              
+              {/* Add New Assignment Button */}
+              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
+                <Button
+                  variant="contained"
+                  startIcon={<AddIcon />}
+                  onClick={() => {
+                    setSelectedClient(selectedClientForAssignments);
+                    loadAvailableAssistants('personal');
+                    setAssignClientDialogOpen(true);
+                  }}
+                  color="primary"
+                >
+                  Назначить дополнительного ассистента
+                </Button>
+              </Box>
+            </Box>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setAssignmentManagementDialogOpen(false)}>
+              Закрыть
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Add New Assignment Dialog */}
         <Dialog
           open={assignClientDialogOpen}
           onClose={() => setAssignClientDialogOpen(false)}
           maxWidth="sm"
           fullWidth
         >
-          <DialogTitle>Назначить клиента ассистенту</DialogTitle>
+          <DialogTitle>Назначить ассистента клиенту</DialogTitle>
           <DialogContent>
             <Box sx={{ mt: 2 }}>
               <Typography variant="body2" color="text.secondary" gutterBottom>
                 Клиент: {selectedClient?.name}
               </Typography>
               
-              {/* Show current assignments with unassign buttons */}
-              {selectedClient?.assigned_assistants && selectedClient.assigned_assistants.length > 0 && (
-                <Box sx={{ mt: 2, mb: 2 }}>
-                  <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
-                    Текущие назначения:
-                  </Typography>
-                  {selectedClient.assigned_assistants.map((assistant) => (
-                    <Box 
-                      key={assistant.id} 
-                      sx={{ 
-                        display: 'flex', 
-                        justifyContent: 'space-between', 
-                        alignItems: 'center',
-                        p: 2,
-                        mb: 1,
-                        bgcolor: 'grey.50',
-                        borderRadius: 1,
-                        border: '1px solid',
-                        borderColor: 'grey.200'
-                      }}
-                    >
-                      <Box>
-                        <Typography variant="body2" fontWeight={500}>
-                          {assistant.name}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {getStatusText(assistant.specialization)} • 
-                          {assistant.current_active_tasks}/5 задач
-                        </Typography>
-                      </Box>
-                      <Button
-                        size="small"
-                        color="error"
-                        variant="outlined"
-                        onClick={() => handleUnassignSpecificAssistant(selectedClient, assistant.assignment_id)}
-                        sx={{ minWidth: 'auto', px: 1 }}
-                      >
-                        Отменить
-                      </Button>
-                    </Box>
-                  ))}
-                </Box>
-              )}
-              
               {/* Show multiple assignment info */}
-              <Box sx={{ p: 2, bgcolor: 'success.50', borderRadius: 2, border: '1px solid', borderColor: 'success.200', mb: 2 }}>
-                <Typography variant="body2" color="success.main">
+              <Box sx={{ p: 2, bgcolor: 'info.50', borderRadius: 2, border: '1px solid', borderColor: 'info.200', mb: 2 }}>
+                <Typography variant="body2" color="info.main">
                   <InfoIcon sx={{ mr: 1, fontSize: 16, verticalAlign: 'middle' }} />
-                  Система поддерживает назначение нескольких ассистентов на одного клиента. 
-                  Новые задачи будут доступны всем назначенным ассистентам.
+                  Можно назначать нескольких ассистентов для разных специализаций
                 </Typography>
               </Box>
               
@@ -2100,6 +2647,7 @@ const Dashboard: React.FC = () => {
               onClick={handleAssignClient}
               variant="contained"
               color="primary"
+              disabled={!assignmentAssistant}
             >
               Назначить ассистента
             </Button>
