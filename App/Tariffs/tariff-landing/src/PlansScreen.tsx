@@ -11,14 +11,21 @@ import {
   ListItemIcon,
   ListItemText,
   styled,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  RadioGroup,
+  FormControlLabel,
+  Radio,
 } from '@mui/material';
 import {
   CheckCircle,
   Star,
-  ArrowForward,
   Business,
   Person,
   AllInclusive,
+  AccessTime,
 } from '@mui/icons-material';
 import { StatsCard, EnhancedPaper, GradientChip, clientGradients } from './styles';
 
@@ -59,182 +66,115 @@ interface Plan {
   taskTypes: string[];
 }
 
+interface HourOption {
+  hours: number;
+  price: number;
+  description: string;
+}
+
 const plans: Plan[] = [
     {
-      id: 'personal_2h',
+    id: 'personal',
       name: 'Личный ассистент',
       price: 15000,
-      hoursPerDay: 2,
-      description: 'Идеально для личных задач и домашних дел',
-      taskTypes: ['Личные'],
-      features: [
-        'До 2 часов работы в день',
-        'Неограниченные личные задачи',
-        'Гарантия выполнения за 24 часа',
-        'Прямое общение с ассистентами',
-        'Поддержка по email',
-        'История задач и отслеживание',
-      ],
-    },
-    {
-      id: 'personal_5h',
-      name: 'Личный ассистент',
-      price: 30000,
       hoursPerDay: 5,
-      description: 'Расширенный пакет для активных пользователей',
+    description: 'Для личных задач и домашних дел',
       taskTypes: ['Личные'],
       features: [
-        'До 5 часов работы в день',
-        'Неограниченные личные задачи',
-        'Гарантия выполнения за 24 часа',
-        'Прямое общение с ассистентами',
-        'Приоритетная поддержка',
-        'История задач и аналитика',
-        'Персональный менеджер',
+      'Личные задачи любой сложности',
+      'Помощь в организации быта',
+      'Поиск услуг и товаров',
+      'Планирование мероприятий',
+      'Бронирование и заказы',
+      'Поддержка 24/7',
       ],
     },
     {
-      id: 'personal_8h',
-      name: 'Личный ассистент',
+    id: 'business',
+    name: 'Бизнес ассистент',
       price: 50000,
       hoursPerDay: 8,
-      description: 'Максимальный пакет для личных задач',
-      taskTypes: ['Личные'],
-      features: [
-        'До 8 часов работы в день',
-        'Неограниченные личные задачи',
-        'Гарантия выполнения за 24 часа',
-        'Прямое общение с ассистентами',
-        'Приоритетная поддержка',
-        'История задач и аналитика',
-        'Персональный менеджер',
-        'Расширенная отчетность',
-      ],
-    },
-    {
-      id: 'business_2h',
-      name: 'Бизнес ассистент',
-      price: 30000,
-      hoursPerDay: 2,
-      description: 'Профессиональная поддержка для бизнеса',
-      taskTypes: ['Бизнес'],
-      features: [
-        'До 2 часов работы в день',
-        'Неограниченные бизнес-задачи',
-        'Гарантия выполнения за 24 часа',
-        'Приоритетный подбор ассистентов',
-        'Бизнес-специализированные ассистенты',
-        'Расширенная отчетность',
-        'Приоритетная поддержка',
-      ],
-    },
-    {
-      id: 'business_5h',
-      name: 'Бизнес ассистент',
-      price: 60000,
-      hoursPerDay: 5,
-      description: 'Расширенная поддержка для бизнеса',
+    description: 'Для профессиональных и рабочих задач',
       taskTypes: ['Бизнес'],
       recommended: true,
       features: [
-        'До 5 часов работы в день',
-        'Неограниченные бизнес-задачи',
-        'Гарантия выполнения за 24 часа',
-        'Приоритетный подбор ассистентов',
-        'Бизнес-специализированные ассистенты',
-        'Расширенная отчетность',
-        'Приоритетная поддержка 24/7',
-        'Интеграция с корпоративными системами',
-      ],
-    },
-    {
-      id: 'business_8h',
-      name: 'Бизнес ассистент',
-      price: 80000,
-      hoursPerDay: 8,
-      description: 'Максимальная поддержка для бизнеса',
-      taskTypes: ['Бизнес'],
-      features: [
-        'До 8 часов работы в день',
-        'Неограниченные бизнес-задачи',
-        'Гарантия выполнения за 24 часа',
-        'Приоритетный подбор ассистентов',
-        'Бизнес-специализированные ассистенты',
-        'Расширенная отчетность',
-        'VIP поддержка 24/7',
-        'Интеграция с корпоративными системами',
-        'Персональный аккаунт-менеджер',
-      ],
-    },
-    {
-      id: 'full_2h',
-      name: 'Личный + Бизнес',
-      price: 40000,
-      hoursPerDay: 2,
-      description: 'Универсальный пакет для всех типов задач',
-      taskTypes: ['Личные', 'Бизнес'],
-      features: [
-        'До 2 часов работы в день',
-        'Неограниченные личные и бизнес-задачи',
-        'Гарантия выполнения за 24 часа',
-        'Приоритетный подбор ассистентов',
-        'Все специализации ассистентов',
-        'Расширенная аналитика',
+      'Исследования рынка',
+      'Подготовка документов',
+      'Организация встреч',
+      'Поиск партнеров и клиентов',
+      'Административные задачи',
         'Приоритетная поддержка',
       ],
     },
     {
-      id: 'full_5h',
+    id: 'full',
       name: 'Личный + Бизнес',
       price: 80000,
-      hoursPerDay: 5,
-      description: 'Расширенный универсальный пакет',
+    hoursPerDay: 10,
+    description: 'Универсальный пакет для всех типов задач',
       taskTypes: ['Личные', 'Бизнес'],
       features: [
-        'До 5 часов работы в день',
-        'Неограниченные личные и бизнес-задачи',
-        'Гарантия выполнения за 24 часа',
-        'Приоритетный подбор ассистентов',
-        'Все специализации ассистентов',
-        'Расширенная аналитика',
+      'Все виды личных задач',
+      'Все виды бизнес-задач',
+      'Максимальная гибкость',
+      'Персональный менеджер',
         'VIP поддержка 24/7',
-        'Доступ к API',
-      ],
-    },
-    {
-      id: 'full_8h',
-      name: 'Личный + Бизнес',
-      price: 100000,
-      hoursPerDay: 8,
-      description: 'Максимальный пакет для всех типов задач',
-      taskTypes: ['Личные', 'Бизнес'],
-      features: [
-        'До 8 часов работы в день',
-        'Неограниченные личные и бизнес-задачи',
-        'Гарантия выполнения за 24 часа',
-        'Приоритетный подбор ассистентов',
-        'Все специализации ассистентов',
         'Расширенная аналитика',
-        'VIP поддержка 24/7',
-        'Доступ к API',
-        'Персональный аккаунт-менеджер',
       ],
     },
   ];
 
+// Варианты часов для каждого типа плана
+const hourOptions: Record<string, HourOption[]> = {
+  personal: [
+    { hours: 2, price: 15000, description: '2 часа в день' },
+    { hours: 5, price: 30000, description: '5 часов в день' },
+    { hours: 8, price: 50000, description: '8 часов в день' },
+  ],
+  business: [
+    { hours: 2, price: 30000, description: '2 часа в день' },
+    { hours: 5, price: 60000, description: '5 часов в день' },
+    { hours: 8, price: 80000, description: '8 часов в день' },
+  ],
+  full: [
+    { hours: 2, price: 40000, description: '2 часа в день' },
+    { hours: 5, price: 80000, description: '5 часов в день' },
+    { hours: 8, price: 100000, description: '8 часов в день' },
+  ],
+};
+
 const PlansScreen: React.FC = () => {
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
+  const [selectedHours, setSelectedHours] = useState<number>(5);
+  const [hourSelectionOpen, setHourSelectionOpen] = useState(false);
+  const [currentPlanForHours, setCurrentPlanForHours] = useState<Plan | null>(null);
 
   const handleSelectPlan = (plan: Plan) => {
-    setSelectedPlan(plan);
+    setCurrentPlanForHours(plan);
+    setHourSelectionOpen(true);
   };
 
-  const handleProceedToPayment = () => {
-    if (selectedPlan) {
-      // Здесь должна быть ссылка на ваше основное клиентское приложение
-      const clientAppUrl = 'https://your-client-app-url.com/payment'; // TODO: Заменить на реальный URL
-      window.location.href = `${clientAppUrl}?plan=${selectedPlan.id}`;
+  const handleHourSelection = (hours: number) => {
+    setSelectedHours(hours);
+  };
+
+  const handleConfirmHourSelection = () => {
+    if (currentPlanForHours) {
+      // Обновляем план с выбранными часами
+      const updatedPlan = {
+        ...currentPlanForHours,
+        hoursPerDay: selectedHours,
+        price: hourOptions[currentPlanForHours.id].find(option => option.hours === selectedHours)?.price || currentPlanForHours.price
+      };
+      setSelectedPlan(updatedPlan);
+      setHourSelectionOpen(false);
+      setCurrentPlanForHours(null);
     }
+  };
+
+  const handleCloseHourSelection = () => {
+    setHourSelectionOpen(false);
+    setCurrentPlanForHours(null);
   };
 
   const getPlanIcon = (taskTypes: string[]) => {
@@ -306,10 +246,10 @@ const PlansScreen: React.FC = () => {
                   {/* Price */}
                   <Box sx={{ textAlign: 'center', mb: 3 }}>
                     <Typography variant="h4" fontWeight="bold" color="primary.main">
-                      {plan.price.toLocaleString('ru-RU')} ₽
+                      от {plan.price.toLocaleString('ru-RU')} ₽
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      в месяц • {plan.hoursPerDay}ч/день
+                      в месяц • от {plan.hoursPerDay}ч/день
                     </Typography>
                   </Box>
 
@@ -401,27 +341,29 @@ const PlansScreen: React.FC = () => {
                   {selectedPlan.price.toLocaleString('ru-RU')} ₽/месяц
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  До {selectedPlan.hoursPerDay} часов в день
+                  {selectedPlan.hoursPerDay} часов работы в день
                 </Typography>
               </Grid>
               <Grid item xs={12} md={4} sx={{ textAlign: { xs: 'center', md: 'right' } }}>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Для регистрации и оплаты перейдите в основное приложение
+                </Typography>
                 <Button
-                  variant="contained"
+                  variant="outlined"
                   size="large"
-                  onClick={handleProceedToPayment}
-                  endIcon={<ArrowForward />}
+                  onClick={() => window.open('https://t.me/your_bot_username', '_blank')}
                   sx={{
                     py: 2,
                     px: 4,
-                    background: clientGradients.primary,
+                    borderColor: 'primary.main',
+                    color: 'primary.main',
                     '&:hover': {
-                      background: clientGradients.primary,
-                      transform: 'translateY(-1px)',
-                      boxShadow: '0 6px 20px rgba(102, 126, 234, 0.3)',
+                      borderColor: 'primary.main',
+                      backgroundColor: 'primary.50',
                     }
                   }}
                 >
-                  Перейти к оплате
+                  Открыть в Telegram
                 </Button>
               </Grid>
             </Grid>
@@ -506,6 +448,105 @@ const PlansScreen: React.FC = () => {
           </Grid>
         </EnhancedPaper>
       </Container>
+
+      {/* Hour Selection Dialog */}
+      <Dialog 
+        open={hourSelectionOpen} 
+        onClose={handleCloseHourSelection}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ textAlign: 'center', pb: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2 }}>
+            <AccessTime sx={{ fontSize: 40, color: 'primary.main', mr: 2 }} />
+            <Typography variant="h5" fontWeight="bold">
+              Выберите количество часов
+            </Typography>
+          </Box>
+          {currentPlanForHours && (
+            <Typography variant="body1" color="text.secondary" sx={{ textAlign: 'center' }}>
+              {currentPlanForHours.name}
+            </Typography>
+          )}
+        </DialogTitle>
+        <DialogContent>
+          {currentPlanForHours && (
+            <Box sx={{ mt: 2 }}>
+              <RadioGroup
+                value={selectedHours}
+                onChange={(e) => handleHourSelection(Number(e.target.value))}
+              >
+                {hourOptions[currentPlanForHours.id].map((option) => (
+                  <Box
+                    key={option.hours}
+                    sx={{
+                      border: selectedHours === option.hours ? '2px solid' : '1px solid',
+                      borderColor: selectedHours === option.hours ? 'primary.main' : 'divider',
+                      borderRadius: 2,
+                      p: 2,
+                      mb: 2,
+                      backgroundColor: selectedHours === option.hours ? 'primary.50' : 'background.paper',
+                      transition: 'all 0.2s ease',
+                      '&:hover': {
+                        borderColor: 'primary.main',
+                        backgroundColor: 'primary.50',
+                      }
+                    }}
+                  >
+                    <FormControlLabel
+                      value={option.hours}
+                      control={<Radio />}
+                      label={
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                          <Box sx={{ flex: 1, mr: 4 }}>
+                            <Typography variant="h6" fontWeight="bold" sx={{ mb: 0.5 }}>
+                              {option.hours} часов в день
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              {option.description}
+                            </Typography>
+                          </Box>
+                          <Box sx={{ textAlign: 'right', minWidth: '140px' }}>
+                            <Typography variant="h5" fontWeight="bold" color="primary.main" sx={{ mb: 0.5 }}>
+                              {option.price.toLocaleString('ru-RU')} ₽
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              в месяц
+                            </Typography>
+                          </Box>
+                        </Box>
+                      }
+                      sx={{ width: '100%', m: 0 }}
+                    />
+                  </Box>
+                ))}
+              </RadioGroup>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 3, pt: 1 }}>
+          <Button 
+            onClick={handleCloseHourSelection}
+            variant="outlined"
+            size="large"
+          >
+            Отмена
+          </Button>
+          <Button
+            onClick={handleConfirmHourSelection}
+            variant="contained"
+            size="large"
+            sx={{
+              background: clientGradients.primary,
+              '&:hover': {
+                background: clientGradients.primary,
+              }
+            }}
+          >
+            Подтвердить выбор
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

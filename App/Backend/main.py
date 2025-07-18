@@ -42,6 +42,14 @@ except ImportError as e:
     from fastapi import APIRouter
     management_router = APIRouter(prefix="/api/v1/management", tags=["management"])
 
+try:
+    from routers.telegram_api import router as telegram_router
+    print("✅ Telegram API router loaded successfully")
+except ImportError as e:
+    print(f"⚠️ Telegram API router not found, creating placeholder. Error: {e}")
+    from fastapi import APIRouter
+    telegram_router = APIRouter(prefix="/api/v1/telegram", tags=["telegram"])
+
 # Create database tables
 print("Creating database tables...")
 models.Base.metadata.create_all(bind=database.engine)
@@ -76,17 +84,10 @@ async def shutdown_event():
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000", 
-        "https://t.me",
-        "https://web.telegram.org",
-        "*"  # Keep wildcard for development
-    ],
+    allow_origins=["*"],  # In production, specify your domains
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"]
 )
 
 def get_db():
@@ -104,6 +105,7 @@ def get_db():
 app.include_router(client_router)
 app.include_router(assistant_router)
 app.include_router(management_router)
+app.include_router(telegram_router)
 
 # =============================================================================
 # LEGACY ENDPOINTS (for backward compatibility)

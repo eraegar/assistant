@@ -57,7 +57,7 @@ def create_manager():
                 name="Менеджер Алина",
                 password_hash=hashed_password,
                 role=models.UserRole.manager,
-                telegram_username="@main_manager"
+                telegram_username="main_manager"
             )
             db.add(db_user)
             db.flush()

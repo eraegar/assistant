@@ -86,7 +86,7 @@ def test_assistant_creation_with_phone_formats():
             "email": f"test{i}@example.com",
             "password": "testpass123",
             "specialization": "personal_only",
-            "telegram_username": f"@test_assistant_{i}"
+            "telegram_username": f"test_assistant_{i}"
         }
         
         try:

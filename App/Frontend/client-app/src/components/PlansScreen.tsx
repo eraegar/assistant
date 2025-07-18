@@ -17,14 +17,6 @@ import {
   Menu,
   MenuItem,
   styled,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  RadioGroup,
-  FormControlLabel,
-  Radio,
-  Chip,
 } from '@mui/material';
 import {
   CheckCircle,
@@ -35,7 +27,6 @@ import {
   Business,
   Person,
   AllInclusive,
-  AccessTime,
 } from '@mui/icons-material';
 import { useAuthStore } from '../stores/useAuthStore';
 import { StatsCard, EnhancedPaper, GradientChip, clientGradients } from '../styles/gradients';
@@ -78,125 +69,372 @@ interface Plan {
   taskTypes: string[];
 }
 
-interface HourOption {
-  hours: number;
-  price: number;
+interface TariffCategory {
+  id: string;
+  name: string;
   description: string;
+  taskTypes: string[];
+  icon: React.ReactNode;
+  hourOptions: {
+    hours: number;
+    price: number;
+    planId: string;
+    features: string[];
+  }[];
 }
 
 const plans: Plan[] = [
   {
-    id: 'personal',
+    id: 'personal_2h',
     name: 'Личный ассистент',
     price: 15000,
-    hoursPerDay: 5,
-    description: 'Для личных задач и домашних дел',
+    hoursPerDay: 2,
+    description: 'Идеально для личных задач и домашних дел',
     taskTypes: ['Личные'],
     features: [
-      'Личные задачи любой сложности',
-      'Помощь в организации быта',
-      'Поиск услуг и товаров',
-      'Планирование мероприятий',
-      'Бронирование и заказы',
-      'Поддержка 24/7',
+      'До 2 часов работы в день',
+      'Неограниченные личные задачи',
+      'Гарантия выполнения за 24 часа',
+      'Прямое общение с ассистентами',
+      'Поддержка по email',
+      'История задач и отслеживание',
     ],
   },
   {
-    id: 'business',
-    name: 'Бизнес ассистент',
+    id: 'personal_5h',
+    name: 'Личный ассистент',
+    price: 30000,
+    hoursPerDay: 5,
+    description: 'Расширенный пакет для активных пользователей',
+    taskTypes: ['Личные'],
+    features: [
+      'До 5 часов работы в день',
+      'Неограниченные личные задачи',
+      'Гарантия выполнения за 24 часа',
+      'Прямое общение с ассистентами',
+      'Приоритетная поддержка',
+      'История задач и аналитика',
+      'Персональный менеджер',
+    ],
+  },
+  {
+    id: 'personal_8h',
+    name: 'Личный ассистент',
     price: 50000,
     hoursPerDay: 8,
-    description: 'Для профессиональных и рабочих задач',
-    taskTypes: ['Бизнес'],
-    recommended: true,
+    description: 'Максимальный пакет для личных задач',
+    taskTypes: ['Личные'],
     features: [
-      'Исследования рынка',
-      'Подготовка документов',
-      'Организация встреч',
-      'Поиск партнеров и клиентов',
-      'Административные задачи',
+      'До 8 часов работы в день',
+      'Неограниченные личные задачи',
+      'Гарантия выполнения за 24 часа',
+      'Прямое общение с ассистентами',
+      'Приоритетная поддержка',
+      'История задач и аналитика',
+      'Персональный менеджер',
+      'Расширенная отчетность',
+    ],
+  },
+  {
+    id: 'business_2h',
+    name: 'Бизнес ассистент',
+    price: 30000,
+    hoursPerDay: 2,
+    description: 'Профессиональная поддержка для бизнеса',
+    taskTypes: ['Бизнес'],
+    features: [
+      'До 2 часов работы в день',
+      'Неограниченные бизнес-задачи',
+      'Гарантия выполнения за 24 часа',
+      'Приоритетный подбор ассистентов',
+      'Бизнес-специализированные ассистенты',
+      'Расширенная отчетность',
       'Приоритетная поддержка',
     ],
   },
   {
-    id: 'full',
-    name: 'Личный + Бизнес',
+    id: 'business_5h',
+    name: 'Бизнес ассистент',
+    price: 60000,
+    hoursPerDay: 5,
+    description: 'Расширенная поддержка для бизнеса',
+    taskTypes: ['Бизнес'],
+    recommended: true,
+    features: [
+      'До 5 часов работы в день',
+      'Неограниченные бизнес-задачи',
+      'Гарантия выполнения за 24 часа',
+      'Приоритетный подбор ассистентов',
+      'Бизнес-специализированные ассистенты',
+      'Расширенная отчетность',
+      'Приоритетная поддержка 24/7',
+      'Интеграция с корпоративными системами',
+    ],
+  },
+  {
+    id: 'business_8h',
+    name: 'Бизнес ассистент',
     price: 80000,
-    hoursPerDay: 10,
+    hoursPerDay: 8,
+    description: 'Максимальная поддержка для бизнеса',
+    taskTypes: ['Бизнес'],
+    features: [
+      'До 8 часов работы в день',
+      'Неограниченные бизнес-задачи',
+      'Гарантия выполнения за 24 часа',
+      'Приоритетный подбор ассистентов',
+      'Бизнес-специализированные ассистенты',
+      'Расширенная отчетность',
+      'VIP поддержка 24/7',
+      'Интеграция с корпоративными системами',
+      'Персональный аккаунт-менеджер',
+    ],
+  },
+  {
+    id: 'full_2h',
+    name: 'Личный + Бизнес',
+    price: 40000,
+    hoursPerDay: 2,
     description: 'Универсальный пакет для всех типов задач',
     taskTypes: ['Личные', 'Бизнес'],
     features: [
-      'Все виды личных задач',
-      'Все виды бизнес-задач',
-      'Максимальная гибкость',
-      'Персональный менеджер',
-      'VIP поддержка 24/7',
+      'До 2 часов работы в день',
+      'Неограниченные личные и бизнес-задачи',
+      'Гарантия выполнения за 24 часа',
+      'Приоритетный подбор ассистентов',
+      'Все специализации ассистентов',
       'Расширенная аналитика',
+      'Приоритетная поддержка',
+    ],
+  },
+  {
+    id: 'full_5h',
+    name: 'Личный + Бизнес',
+    price: 80000,
+    hoursPerDay: 5,
+    description: 'Расширенный универсальный пакет',
+    taskTypes: ['Личные', 'Бизнес'],
+    features: [
+      'До 5 часов работы в день',
+      'Неограниченные личные и бизнес-задачи',
+      'Гарантия выполнения за 24 часа',
+      'Приоритетный подбор ассистентов',
+      'Все специализации ассистентов',
+      'Расширенная аналитика',
+      'VIP поддержка 24/7',
+      'Доступ к API',
+    ],
+  },
+  {
+    id: 'full_8h',
+    name: 'Личный + Бизнес',
+    price: 100000,
+    hoursPerDay: 8,
+    description: 'Максимальный пакет для всех типов задач',
+    taskTypes: ['Личные', 'Бизнес'],
+    features: [
+      'До 8 часов работы в день',
+      'Неограниченные личные и бизнес-задачи',
+      'Гарантия выполнения за 24 часа',
+      'Приоритетный подбор ассистентов',
+      'Все специализации ассистентов',
+      'Расширенная аналитика',
+      'VIP поддержка 24/7',
+      'Доступ к API',
+      'Персональный аккаунт-менеджер',
     ],
   },
 ];
 
-// Варианты часов для каждого типа плана
-const hourOptions: Record<string, HourOption[]> = {
-  personal: [
-    { hours: 2, price: 15000, description: '2 часа в день' },
-    { hours: 5, price: 30000, description: '5 часов в день' },
-    { hours: 8, price: 50000, description: '8 часов в день' },
-  ],
-  business: [
-    { hours: 2, price: 30000, description: '2 часа в день' },
-    { hours: 5, price: 60000, description: '5 часов в день' },
-    { hours: 8, price: 80000, description: '8 часов в день' },
-  ],
-  full: [
-    { hours: 2, price: 40000, description: '2 часа в день' },
-    { hours: 5, price: 80000, description: '5 часов в день' },
-    { hours: 8, price: 100000, description: '8 часов в день' },
-  ],
-};
+const tariffCategories: TariffCategory[] = [
+  {
+    id: 'personal',
+    name: 'Личный ассистент',
+    description: 'Идеально для личных задач и домашних дел',
+    taskTypes: ['Личные'],
+    icon: <Person sx={{ fontSize: 40, color: 'primary.main' }} />,
+    hourOptions: [
+      {
+        hours: 2,
+        price: 15000,
+        planId: 'personal_2h',
+        features: [
+          'До 2 часов работы в день',
+          'Неограниченные личные задачи',
+          'Гарантия выполнения за 24 часа',
+          'Прямое общение с ассистентами',
+          'Поддержка по email',
+          'История задач и отслеживание',
+        ]
+      },
+      {
+        hours: 5,
+        price: 30000,
+        planId: 'personal_5h',
+        features: [
+          'До 5 часов работы в день',
+          'Неограниченные личные задачи',
+          'Гарантия выполнения за 24 часа',
+          'Прямое общение с ассистентами',
+          'Приоритетная поддержка',
+          'История задач и аналитика',
+          'Персональный менеджер',
+        ]
+      },
+      {
+        hours: 8,
+        price: 50000,
+        planId: 'personal_8h',
+        features: [
+          'До 8 часов работы в день',
+          'Неограниченные личные задачи',
+          'Гарантия выполнения за 24 часа',
+          'Прямое общение с ассистентами',
+          'Приоритетная поддержка',
+          'История задач и аналитика',
+          'Персональный менеджер',
+          'Расширенная отчетность',
+        ]
+      }
+    ]
+  },
+  {
+    id: 'business',
+    name: 'Бизнес ассистент',
+    description: 'Профессиональная поддержка для бизнеса',
+    taskTypes: ['Бизнес'],
+    icon: <Business sx={{ fontSize: 40, color: 'primary.main' }} />,
+    hourOptions: [
+      {
+        hours: 2,
+        price: 30000,
+        planId: 'business_2h',
+        features: [
+          'До 2 часов работы в день',
+          'Неограниченные бизнес-задачи',
+          'Гарантия выполнения за 24 часа',
+          'Приоритетный подбор ассистентов',
+          'Бизнес-специализированные ассистенты',
+          'Расширенная отчетность',
+          'Приоритетная поддержка',
+        ]
+      },
+      {
+        hours: 5,
+        price: 60000,
+        planId: 'business_5h',
+        features: [
+          'До 5 часов работы в день',
+          'Неограниченные бизнес-задачи',
+          'Гарантия выполнения за 24 часа',
+          'Приоритетный подбор ассистентов',
+          'Бизнес-специализированные ассистенты',
+          'Расширенная отчетность',
+          'Приоритетная поддержка 24/7',
+          'Интеграция с корпоративными системами',
+        ]
+      },
+      {
+        hours: 8,
+        price: 80000,
+        planId: 'business_8h',
+        features: [
+          'До 8 часов работы в день',
+          'Неограниченные бизнес-задачи',
+          'Гарантия выполнения за 24 часа',
+          'Приоритетный подбор ассистентов',
+          'Бизнес-специализированные ассистенты',
+          'Расширенная отчетность',
+          'VIP поддержка 24/7',
+          'Интеграция с корпоративными системами',
+          'Персональный аккаунт-менеджер',
+        ]
+      }
+    ]
+  },
+  {
+    id: 'full',
+    name: 'Полный пакет',
+    description: 'Универсальный пакет для всех типов задач',
+    taskTypes: ['Личные', 'Бизнес'],
+    icon: <AllInclusive sx={{ fontSize: 40, color: 'primary.main' }} />,
+    hourOptions: [
+      {
+        hours: 2,
+        price: 40000,
+        planId: 'full_2h',
+        features: [
+          'До 2 часов работы в день',
+          'Неограниченные личные и бизнес-задачи',
+          'Гарантия выполнения за 24 часа',
+          'Приоритетный подбор ассистентов',
+          'Все специализации ассистентов',
+          'Расширенная аналитика',
+          'Приоритетная поддержка',
+        ]
+      },
+      {
+        hours: 5,
+        price: 80000,
+        planId: 'full_5h',
+        features: [
+          'До 5 часов работы в день',
+          'Неограниченные личные и бизнес-задачи',
+          'Гарантия выполнения за 24 часа',
+          'Приоритетный подбор ассистентов',
+          'Все специализации ассистентов',
+          'Расширенная аналитика',
+          'VIP поддержка 24/7',
+          'Доступ к API',
+        ]
+      },
+      {
+        hours: 8,
+        price: 100000,
+        planId: 'full_8h',
+        features: [
+          'До 8 часов работы в день',
+          'Неограниченные личные и бизнес-задачи',
+          'Гарантия выполнения за 24 часа',
+          'Приоритетный подбор ассистентов',
+          'Все специализации ассистентов',
+          'Расширенная аналитика',
+          'VIP поддержка 24/7',
+          'Доступ к API',
+          'Персональный аккаунт-менеджер',
+        ]
+      }
+    ]
+  }
+];
 
 const PlansScreen: React.FC = () => {
   const { user, logout } = useAuthStore();
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
-  const [selectedHours, setSelectedHours] = useState<number>(5);
+  const [selectedCategory, setSelectedCategory] = useState<TariffCategory | null>(null);
+  const [selectedHourOption, setSelectedHourOption] = useState<{hours: number; price: number; planId: string; features: string[]} | null>(null);
+  const [showHourSelection, setShowHourSelection] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const [hourSelectionOpen, setHourSelectionOpen] = useState(false);
-  const [currentPlanForHours, setCurrentPlanForHours] = useState<Plan | null>(null);
 
-  const handleSelectPlan = (plan: Plan) => {
-    setCurrentPlanForHours(plan);
-    setHourSelectionOpen(true);
+  const handleSelectCategory = (category: TariffCategory) => {
+    setSelectedCategory(category);
+    setShowHourSelection(true);
   };
 
-  const handleHourSelection = (hours: number) => {
-    setSelectedHours(hours);
-  };
-
-  const handleConfirmHourSelection = () => {
-    if (currentPlanForHours) {
-      // Обновляем план с выбранными часами
-      const updatedPlan = {
-        ...currentPlanForHours,
-        hoursPerDay: selectedHours,
-        price: hourOptions[currentPlanForHours.id].find(option => option.hours === selectedHours)?.price || currentPlanForHours.price
-      };
-      setSelectedPlan(updatedPlan);
-      setHourSelectionOpen(false);
-      setCurrentPlanForHours(null);
-    }
-  };
-
-  const handleCloseHourSelection = () => {
-    setHourSelectionOpen(false);
-    setCurrentPlanForHours(null);
+  const handleSelectHour = (hourOption: {hours: number; price: number; planId: string; features: string[]}) => {
+    setSelectedHourOption(hourOption);
   };
 
   const handleProceedToPayment = () => {
-    if (selectedPlan) {
-      const planId = selectedPlan.id;
-      const hours = selectedPlan.hoursPerDay;
-      window.location.href = `/payment?plan=${planId}&hours=${hours}`;
+    if (selectedHourOption) {
+      window.location.href = `/payment?plan=${selectedHourOption.planId}`;
     }
+  };
+
+  const handleBackToCategories = () => {
+    setShowHourSelection(false);
+    setSelectedCategory(null);
+    setSelectedHourOption(null);
   };
 
   const handleProfileMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
@@ -283,47 +521,123 @@ const PlansScreen: React.FC = () => {
           </Typography>
         </Box>
 
-        {/* Plans Grid */}
-        <Grid container spacing={3} sx={{ mb: 4 }}>
-          {plans.map((plan) => (
-            <Grid item xs={12} sm={6} lg={3} key={plan.id}>
+        {!showHourSelection ? (
+          <>
+            {/* Category Selection */}
+            <Box sx={{ textAlign: 'center', mb: 4 }}>
+              <Typography variant="h5" fontWeight="bold" gutterBottom>
+                Шаг 1: Выберите тип ассистента 🎯
+              </Typography>
+              <Typography variant="body1" color="text.secondary">
+                Определите, какие задачи вы планируете делегировать
+              </Typography>
+            </Box>
+
+            <Grid container spacing={4} sx={{ mb: 4 }}>
+              {tariffCategories.map((category) => (
+                <Grid item xs={12} md={4} key={category.id}>
               <PlanCard 
-                className={plan.recommended ? 'recommended' : ''}
-                onClick={() => handleSelectPlan(plan)}
+                    onClick={() => handleSelectCategory(category)}
                 sx={{ 
                   cursor: 'pointer',
-                  border: selectedPlan?.id === plan.id ? '2px solid' : '1px solid',
-                  borderColor: selectedPlan?.id === plan.id ? 'primary.main' : 'rgba(102, 126, 234, 0.1)',
+                      border: '1px solid rgba(102, 126, 234, 0.1)',
+                      '&:hover': {
+                        transform: 'translateY(-4px)',
+                        boxShadow: '0 12px 40px rgba(102, 126, 234, 0.15)',
+                        borderColor: 'primary.main',
+                      }
                 }}
               >
-                <CardContent sx={{ p: 3, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-                  {/* Plan Header */}
-                  <Box sx={{ textAlign: 'center', mb: 3 }}>
-                    {getPlanIcon(plan.taskTypes)}
-                    <Typography variant="h6" fontWeight="bold" sx={{ mt: 1, mb: 1 }}>
-                      {plan.name}
+                    <CardContent sx={{ p: 4, textAlign: 'center' }}>
+                      {category.icon}
+                      <Typography variant="h5" fontWeight="bold" sx={{ mt: 2, mb: 2 }}>
+                        {category.name}
+                      </Typography>
+                      <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+                        {category.description}
+                      </Typography>
+                      <Box sx={{ mb: 3 }}>
+                        {getTaskTypeChips(category.taskTypes)}
+                      </Box>
+                      <Button
+                        variant="outlined"
+                        size="large"
+                        fullWidth
+                        endIcon={<ArrowForward />}
+                        sx={{
+                          py: 1.5,
+                          borderColor: 'primary.main',
+                          color: 'primary.main',
+                          '&:hover': {
+                            borderColor: 'primary.main',
+                            background: 'primary.50',
+                          }
+                        }}
+                      >
+                        Выбрать
+                      </Button>
+                    </CardContent>
+                  </PlanCard>
+                </Grid>
+              ))}
+            </Grid>
+          </>
+        ) : (
+          <>
+            {/* Hour Selection */}
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 4 }}>
+              <Button
+                onClick={handleBackToCategories}
+                startIcon={<ArrowForward sx={{ transform: 'rotate(180deg)' }} />}
+                sx={{ mr: 2 }}
+              >
+                Назад
+              </Button>
+              <Box>
+                <Typography variant="h5" fontWeight="bold">
+                  Шаг 2: Выберите количество часов 🕐
                     </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                      {plan.description}
+                <Typography variant="body1" color="text.secondary">
+                  {selectedCategory?.name} • {selectedCategory?.description}
                     </Typography>
-                    <Box sx={{ mb: 2 }}>
-                      {getTaskTypeChips(plan.taskTypes)}
                     </Box>
+            </Box>
+
+            <Grid container spacing={3} sx={{ mb: 4 }}>
+              {selectedCategory?.hourOptions.map((hourOption) => (
+                <Grid item xs={12} md={4} key={hourOption.hours}>
+                  <PlanCard 
+                    onClick={() => handleSelectHour(hourOption)}
+                    sx={{ 
+                      cursor: 'pointer',
+                      border: selectedHourOption?.hours === hourOption.hours ? '2px solid' : '1px solid',
+                      borderColor: selectedHourOption?.hours === hourOption.hours ? 'primary.main' : 'rgba(102, 126, 234, 0.1)',
+                    }}
+                  >
+                    <CardContent sx={{ p: 3, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+                      {/* Hour Header */}
+                      <Box sx={{ textAlign: 'center', mb: 3 }}>
+                        <Typography variant="h3" fontWeight="bold" color="primary.main">
+                          {hourOption.hours}ч
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          в день
+                        </Typography>
                   </Box>
 
                   {/* Price */}
                   <Box sx={{ textAlign: 'center', mb: 3 }}>
                     <Typography variant="h4" fontWeight="bold" color="primary.main">
-                      от {plan.price.toLocaleString('ru-RU')} ₽
+                          {hourOption.price.toLocaleString('ru-RU')} ₽
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      в месяц • от {plan.hoursPerDay}ч/день
+                          в месяц
                     </Typography>
                   </Box>
 
                   {/* Features */}
                   <List dense sx={{ flexGrow: 1, mb: 2 }}>
-                    {plan.features.map((feature, index) => (
+                        {hourOption.features.map((feature, index) => (
                       <ListItem key={index} sx={{ px: 0, py: 0.5 }}>
                         <ListItemIcon sx={{ minWidth: 32 }}>
                           <CheckCircle sx={{ fontSize: 16, color: 'success.main' }} />
@@ -341,31 +655,22 @@ const PlansScreen: React.FC = () => {
 
                   {/* Select Button */}
                   <Button
-                    variant={selectedPlan?.id === plan.id ? "contained" : "outlined"}
+                        variant={selectedHourOption?.hours === hourOption.hours ? "contained" : "outlined"}
                     fullWidth
                     size="large"
-                    onClick={() => handleSelectPlan(plan)}
+                        onClick={() => handleSelectHour(hourOption)}
                     sx={{
                       mt: 'auto',
                       py: 1.5,
-                      ...(selectedPlan?.id === plan.id && {
+                          ...(selectedHourOption?.hours === hourOption.hours && {
                         background: clientGradients.primary,
                         '&:hover': {
                           background: clientGradients.primary,
                         }
-                      }),
-                      ...(plan.recommended && selectedPlan?.id !== plan.id && {
-                        borderColor: 'primary.main',
-                        color: 'primary.main',
-                        borderWidth: 2,
-                        '&:hover': {
-                          borderWidth: 2,
-                          transform: 'translateY(-1px)',
-                        }
                       })
                     }}
                   >
-                    {selectedPlan?.id === plan.id ? (
+                        {selectedHourOption?.hours === hourOption.hours ? (
                       <>
                         <CheckCircle sx={{ mr: 1, fontSize: 20 }} />
                         Выбрано
@@ -374,42 +679,33 @@ const PlansScreen: React.FC = () => {
                       'Выбрать план'
                     )}
                   </Button>
-
-                  {plan.recommended && (
-                    <Box sx={{ display: 'flex', justifyContent: 'center', mt: 1 }}>
-                      <GradientChip
-                        icon={<Star />}
-                        label="Популярный выбор"
-                        size="small"
-                        color="warning"
-                      />
-                    </Box>
-                  )}
                 </CardContent>
               </PlanCard>
             </Grid>
           ))}
         </Grid>
+          </>
+        )}
 
         {/* Selected Plan Summary */}
-        {selectedPlan && (
+        {selectedHourOption && selectedCategory && (
           <EnhancedPaper sx={{ p: 4, mb: 3 }}>
             <Grid container spacing={3} alignItems="center">
               <Grid item xs={12} md={8}>
                 <Typography variant="h6" fontWeight="bold" gutterBottom>
-                  Выбранный план: {selectedPlan.name}
+                  Выбранный план: {selectedCategory.name}
                 </Typography>
                 <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
-                  {selectedPlan.description}
+                  {selectedCategory.description}
                 </Typography>
                 <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-                  {getTaskTypeChips(selectedPlan.taskTypes)}
+                  {getTaskTypeChips(selectedCategory.taskTypes)}
                 </Box>
                 <Typography variant="h5" fontWeight="bold" color="primary.main">
-                  {selectedPlan.price.toLocaleString('ru-RU')} ₽/месяц
+                  {selectedHourOption.price.toLocaleString('ru-RU')} ₽/месяц
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  {selectedPlan.hoursPerDay} часов работы в день
+                  До {selectedHourOption.hours} часов работы в день
                 </Typography>
               </Grid>
               <Grid item xs={12} md={4} sx={{ textAlign: { xs: 'center', md: 'right' } }}>
@@ -514,105 +810,6 @@ const PlansScreen: React.FC = () => {
           </Grid>
         </EnhancedPaper>
       </Container>
-
-      {/* Hour Selection Dialog */}
-      <Dialog 
-        open={hourSelectionOpen} 
-        onClose={handleCloseHourSelection}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle sx={{ textAlign: 'center', pb: 1 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2 }}>
-            <AccessTime sx={{ fontSize: 40, color: 'primary.main', mr: 2 }} />
-            <Typography variant="h5" fontWeight="bold">
-              Выберите количество часов
-            </Typography>
-          </Box>
-          {currentPlanForHours && (
-            <Typography variant="body1" color="text.secondary" sx={{ textAlign: 'center' }}>
-              {currentPlanForHours.name}
-            </Typography>
-          )}
-        </DialogTitle>
-        <DialogContent>
-          {currentPlanForHours && (
-            <Box sx={{ mt: 2 }}>
-              <RadioGroup
-                value={selectedHours}
-                onChange={(e) => handleHourSelection(Number(e.target.value))}
-              >
-                {hourOptions[currentPlanForHours.id].map((option) => (
-                  <Box
-                    key={option.hours}
-                    sx={{
-                      border: selectedHours === option.hours ? '2px solid' : '1px solid',
-                      borderColor: selectedHours === option.hours ? 'primary.main' : 'divider',
-                      borderRadius: 2,
-                      p: 2,
-                      mb: 2,
-                      backgroundColor: selectedHours === option.hours ? 'primary.50' : 'background.paper',
-                      transition: 'all 0.2s ease',
-                      '&:hover': {
-                        borderColor: 'primary.main',
-                        backgroundColor: 'primary.50',
-                      }
-                    }}
-                  >
-                    <FormControlLabel
-                      value={option.hours}
-                      control={<Radio />}
-                      label={
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                          <Box sx={{ flex: 1, mr: 4 }}>
-                            <Typography variant="h6" fontWeight="bold" sx={{ mb: 0.5 }}>
-                              {option.hours} часов в день
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              {option.description}
-                            </Typography>
-                          </Box>
-                          <Box sx={{ textAlign: 'right', minWidth: '140px' }}>
-                            <Typography variant="h5" fontWeight="bold" color="primary.main" sx={{ mb: 0.5 }}>
-                              {option.price.toLocaleString('ru-RU')} ₽
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              в месяц
-                            </Typography>
-                          </Box>
-                        </Box>
-                      }
-                      sx={{ width: '100%', m: 0 }}
-                    />
-                  </Box>
-                ))}
-              </RadioGroup>
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions sx={{ p: 3, pt: 1 }}>
-          <Button 
-            onClick={handleCloseHourSelection}
-            variant="outlined"
-            size="large"
-          >
-            Отмена
-          </Button>
-          <Button
-            onClick={handleConfirmHourSelection}
-            variant="contained"
-            size="large"
-            sx={{
-              background: clientGradients.primary,
-              '&:hover': {
-                background: clientGradients.primary,
-              }
-            }}
-          >
-            Подтвердить выбор
-          </Button>
-        </DialogActions>
-      </Dialog>
     </Box>
   );
 };

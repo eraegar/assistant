@@ -207,7 +207,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ open, onClose }) => {
                     </ListItemIcon>
                     <ListItemText
                       primary="Telegram"
-                      secondary={user?.telegram_username ? (user.telegram_username.startsWith('@') ? user.telegram_username : `@${user.telegram_username}`) : 'Не указано'}
+                      secondary={user?.telegram_username ? `@${user.telegram_username}` : 'Не указано'}
                     />
                   </ListItem>
                 </List>
